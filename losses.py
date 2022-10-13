@@ -1,3 +1,4 @@
+from importlib_metadata import requires
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
@@ -6,10 +7,14 @@ from torch import optim
 from torch.autograd import Variable
 from torch.autograd import grad
 import numpy as np
+import torchsummary
+from itertools import chain
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Calculer résidu
 def nth_gradient(f,wrt,n):
     for i in range(n):
+        f = list(chain(*f))
         grads = grad(f,wrt,create_graph=True,allow_unused=True,)[0]
         f = grads
         if grads is None:
@@ -45,13 +50,16 @@ class PINN(nn.Module):
     def forward(self,x,t):
         return self.model(torch.cat((x,t),dim=1))
 
-net = PINN()
-
+net = PINN().to(device)
+torchsummary.summary(net,[(1,),(1,)])
 # Calculer loss résidu + loss bords
 def loss_fn(x_r,t_r,
             u_b,x_b,t_b,
             u_i,x_i,t_i):
-    loss_residual = torch.mean(f(x_r,t_r)**2)
+    x_r,t_r = Variable(x_r,requires_grad=True).to(device),Variable(t_r,requires_grad=True).to(device)
+    u_b,x_b,t_b = Variable(u_b,requires_grad=False).to(device),Variable(x_b,requires_grad=False).to(device),Variable(t_b,requires_grad=False).to(device)
+    u_i,x_i,t_i = Variable(u_i,requires_grad=False).to(device),Variable(x_i,requires_grad=False).to(device),Variable(t_i,requires_grad=False).to(device)
+    loss_residual = torch.mean(torch.square(f(x_r,t_r)))
     u_pred_b = net(x_b,t_b)
     loss_bords = torch.mean((u_pred_b-u_b)**2)
 
@@ -74,6 +82,9 @@ u_b = torch.zeros(N_b,1)
 t_r = torch.linspace(0,1,N_r).view(N_r,1)
 x_r = torch.linspace(0,1,N_r).view(N_r,1)
 
+print(t_0.shape,x_0.shape,u_0.shape)
+print(t_b.shape,x_b.shape,u_b.shape)
+print(t_r.shape,x_r.shape)
 # Entraîner modèle
 def train_step(model,optimizer,x_r,t_r,
                u_b,x_b,t_b,
@@ -101,6 +112,3 @@ opt = optim.Adam(net.parameters(),lr=0.001)
 train(net,opt,x_r,t_r,
         u_b,x_b,t_b,
         u_0,x_0,t_0,epochs=10000)
-
-
-    
