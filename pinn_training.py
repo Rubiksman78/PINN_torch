@@ -5,14 +5,17 @@ import matplotlib.pyplot as plt
 from network import PINN
 import torch
 import torch.functional as F
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-with_rnn = True
+with_rnn = False
 net = PINN(with_rnn=with_rnn)
 net._model_summary()
 
-N_i,N_b,N_r = 300,300,300
+########################################################### POINTS DEFINITION ###########################################################
+#########################################################################################################################################
+N_i,N_b,N_r = 10000,10000,10000
 
 t_i = torch.zeros(N_i,1)
 x_i = torch.linspace(0,1,N_i).view(N_i,1)
@@ -27,6 +30,9 @@ u_b = torch.zeros(N_b,1)
 t_r = torch.rand(N_r,1)
 x_r = torch.rand(N_r,1)
 
+
+############################################################## POINTS PLOTTING #############################################################
+############################################################################################################################################
 def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
     """
     Input: -dimension = spatial dimension
@@ -52,6 +58,8 @@ plot_training_points(t_i.data.numpy(),
                 u_i.data.numpy(),
                 u_b.data.numpy())
 
+############################################################## SEQUENCES FOR RNN ###################################################################
+####################################################################################################################################################
 def data_to_rnn_sequences(data,seq_len):
     """Converts data to sequences of length seq_len"""
     sequences = []
@@ -80,7 +88,6 @@ def all_data_to_label(x_r,t_r,
     x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = x_r.to(device),t_r.to(device),u_b.to(device),x_b.to(device),t_b.to(device),u_i.to(device),x_i.to(device),t_i.to(device)
     return x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i
 
-
 if with_rnn:
     x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = all_data_to_sequences(x_r,t_r,
             u_b,x_b,t_b,
@@ -89,6 +96,7 @@ if with_rnn:
     #        u_b,x_b,t_b,
     #        u_i,x_i,t_i)
 
+############################################################## TRAIN VAL SPLIT ###################################################################
 def val_split(x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i,split=0.2):
     """Splits data into training and validation set with random order"""
     x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = x_r.to(device),t_r.to(device),u_b.to(device),x_b.to(device),t_b.to(device),u_i.to(device),x_i.to(device),t_i.to(device)
@@ -148,6 +156,8 @@ else:
     train_data = train_data + train_data_labels
     val_data = val_data + val_data_labels
 
+########################################################### PLOTTING FUNCTIONS ###########################################################
+##########################################################################################################################################
 def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False):
     """Same for the real solution"""
     model = model.net
@@ -191,6 +201,8 @@ def plot_loss(train_losses,val_losses):
     plt.savefig(f'results/loss')
     plt.close()
 
+########################################################### TRAINING ###########################################################
+################################################################################################################################
 def train(model,train_data,val_data,
         epochs):
     epochs = tqdm(range(epochs),desc="Training")
