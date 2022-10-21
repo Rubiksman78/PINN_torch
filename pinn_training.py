@@ -220,8 +220,8 @@ def train(model,train_data,val_data,
         val_losses.append(val_loss)
         if epoch%100==0:
             plot1dgrid_real(lb,ub,N,model,epoch)
-        if epoch+1%1000==0:
-            model.net.save_weights(f'weights/weights_{epoch}')
+        if epoch%1000==0:
+            torch.save(model.net.state_dict(), f"results/model_{epoch}.pt")
         #Plot_losses
         plot_loss(losses,val_losses)
 
