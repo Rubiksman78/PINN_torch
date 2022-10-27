@@ -215,9 +215,11 @@ class PINN():
         u_pred_i = self.net(x_i, t_i)
         u_pred_b = self.net(x_b, t_b)
         u_pred_r = self.net(x_r, t_r)
+
         initial_diff = torch.abs(u_pred_i - sol(x_i, t_i))
         bords_diff = torch.abs(u_pred_b - sol(x_b, t_b))
         domain_diff = torch.abs(u_pred_r - sol(x_r, t_r))
+
         numerator = torch.sum(initial_diff) + \
             torch.sum(bords_diff)+torch.sum(domain_diff)
         denominator = torch.sum(torch.abs(sol(x_i, t_i))) + \
