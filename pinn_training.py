@@ -15,14 +15,14 @@ net._model_summary()
 
 ########################################################### POINTS DEFINITION ###########################################################
 #########################################################################################################################################
-N_i,N_b,N_r = 10000,10000,10000
-
+N_i,N_b,N_r = 2000,2000,20000
+l_b,u_b = 0,1
 t_i = torch.zeros(N_i,1)
-x_i = torch.linspace(0,1,N_i).view(N_i,1)
+x_i = torch.linspace(l_b,u_b,N_i).view(N_i,1)
 #u_0 = torch.sin(np.pi*x_0)
 u_i = t_i + 1*(torch.sin(np.pi*x_i) + 0.5*torch.sin(4*np.pi*x_i))
 
-t_b = torch.linspace(0,1,N_b).view(N_b,1)
+t_b = torch.linspace(l_b,u_b,N_b).view(N_b,1)
 #x_b evenly distributed in 0 or 1 with total N_b points
 x_b = torch.bernoulli(0.5*torch.ones(N_b,1))
 u_b = torch.zeros(N_b,1)
@@ -30,7 +30,35 @@ u_b = torch.zeros(N_b,1)
 t_r = torch.rand(N_r,1)
 x_r = torch.rand(N_r,1)
 
+#Normalize data with min max
+def normalize_data(x_r,t_r,
+        u_b,x_b,t_b,
+        u_i,x_i,t_i):
+    x_r,t_r = 2*(x_r-x_r.min())/(x_r.max()-x_r.min())-1,2*(t_r-t_r.min())/(t_r.max()-t_r.min())-1
+    x_b,t_b = 2*(x_b-x_b.min())/(x_b.max()-x_b.min())-1,2*(t_b-t_b.min())/(t_b.max()-t_b.min())-1
+    x_i,t_i = 2*(x_i-x_i.min())/(x_i.max()-x_i.min())-1,-1*torch.ones(N_i,1)
+    return x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i
 
+def unnormalize_data(x_r,t_r,
+        u_b,x_b,t_b,
+        u_i,x_i,t_i,
+        x_r_min,x_r_max,
+        t_r_min,t_r_max,
+        u_b_min,u_b_max,
+        x_b_min,x_b_max,
+        t_b_min,t_b_max,
+        u_i_min,u_i_max,
+        x_i_min,x_i_max,
+        t_i_min,t_i_max):
+    x_r,t_r = x_r*(x_r_max-x_r_min)+x_r_min,t_r*(t_r_max-t_r_min)+t_r_min
+    u_b,x_b,t_b = u_b*(u_b_max-u_b_min)+u_b_min,x_b*(x_b_max-x_b_min)+x_b_min,t_b*(t_b_max-t_b_min)+t_b_min
+    u_i,x_i,t_i = u_i*(u_i_max-u_i_min)+u_i_min,x_i*(x_i_max-x_i_min)+x_i_min,t_i*(t_i_max-t_i_min)+t_i_min
+    return x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i
+
+x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = normalize_data(x_r,t_r,
+        u_b,x_b,t_b,
+        u_i,x_i,t_i)
+print("Training points",x_i.min(),x_i.max(),t_i.min(),t_i.max())
 ############################################################## POINTS PLOTTING #############################################################
 ############################################################################################################################################
 def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
@@ -41,8 +69,8 @@ def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
     """
     fig = plt.figure(figsize=(9, 6))
     ax = fig.add_subplot(111)
-    ax.scatter(t_0, x_0[:, 0], c=u_0, marker='X', vmin=-1, vmax=1)
-    ax.scatter(t_b, x_b[:, 0], c=u_b, marker='X', vmin=-1, vmax=1)
+    ax.scatter(t_0, x_0[:, 0], c=u_0, marker='X')
+    ax.scatter(t_b, x_b[:, 0], c=u_b, marker='X')
     ax.scatter(t_r, x_r[:, 0], c='r', marker='.', alpha=0.1)
     ax.set_xlabel('$t$')
     ax.set_ylabel('$x1$')
@@ -158,7 +186,7 @@ else:
 
 ########################################################### PLOTTING FUNCTIONS ###########################################################
 ##########################################################################################################################################
-def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False):
+def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
     """Same for the real solution"""
     model = model.net
     x1space = np.linspace(lb[0], ub[0], N)
@@ -184,11 +212,15 @@ def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.scatter(T,X1,c=U, marker='X', vmin=-1, vmax=1)
+    ax.scatter(T,X1,c=U, marker='X')
     ax.set_xlabel('$t$')
     ax.set_ylabel('$x1$')
-    plt.savefig(f'results/generated_{k}')
-    plt.close()
+    if show:
+        plt.show()
+    else:
+        plt.savefig(f'results/generated_{k}')
+        plt.close()
+   
 
 #Plot train and val losses on same figure
 def plot_loss(train_losses,val_losses):
@@ -225,7 +257,7 @@ def train(model,train_data,val_data,
         #Plot_losses
         plot_loss(losses,val_losses)
 
-       
+      
 def train_rnn(model,train_data,val_data,epochs):
     epochs = tqdm(range(epochs),desc="Training")
     losses = []
@@ -246,11 +278,15 @@ def train_rnn(model,train_data,val_data,epochs):
             model.net.save_weights(f'weights/weights_{epoch}')
         plot_loss(losses,val_losses)
 
-lb = [0,0]
+lb = [-1,-1]
 ub = [1,1]
-N = 70
+N = 1000
+
 with torch.backends.cudnn.flags(enabled=False):
     if with_rnn:
         train_rnn(net,train_data,val_data,epochs=10000)
     else:
         train(net,train_data,val_data,epochs=10000)
+
+net.net.load_state_dict(torch.load("model_9000.pt"))
+plot1dgrid_real(lb,ub,N,net,10000,show=True)

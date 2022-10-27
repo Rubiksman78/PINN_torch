@@ -2,3 +2,8 @@ __pycache__
 first_nn.py
 .vscode
 results
+generated*
+loss*
+model*
+
+

@@ -16,13 +16,13 @@ class Scaling_layer(nn.Module):
         self.ub = torch.tensor([1.0,1.0]).to(device)
 
     def forward(self, x):
-        return 2.0*(x - self.lb)/(self.ub - self.lb) - 1.0
+        return 2*(x - self.lb)/(self.ub - self.lb)-1
 
 # Réseau de neurones
 class network(nn.Module):
     def __init__(self):
         super().__init__()
-        self.num_neurons = 32
+        self.num_neurons = 64
         self.num_layers = 4
         self.scaling_layer = Scaling_layer()
         self.linear_input = nn.Linear(2,self.num_neurons)
@@ -38,6 +38,7 @@ class network(nn.Module):
             x = self.activation(linear(x))
             x = self.dropout(x)
         x = self.linear_output(x)
+        x = torch.sin(x)
         return x
 
 class RNN(nn.Module):
@@ -119,7 +120,7 @@ class PINN():
         loss_bords = torch.mean((u_pred_b-u_b_label)**2)
         u_pred_i = self.net(x_i,t_i)
         loss_init = torch.mean((u_pred_i-u_i_label)**2)
-        return loss_residual + loss_bords + loss_init
+        return 0.1*loss_residual + loss_bords + loss_init
 
     def loss_fn(self,x_r,t_r,
                 u_b,x_b,t_b,
