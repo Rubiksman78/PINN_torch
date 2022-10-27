@@ -6,6 +6,8 @@ from torch import optim
 from torch.autograd import grad
 from itertools import chain
 import torchsummary
+from real_sol import real_sol, sol
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -207,3 +209,18 @@ class PINN():
                                 u_b_label, x_b_label, t_b_label,
                                 u_i_label, x_i_label, t_i_label)
         return loss.item()
+
+    def accuracy_step(self, val_data):
+        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = val_data
+        u_pred_i = self.net(x_i, t_i)
+        u_pred_b = self.net(x_b, t_b)
+        u_pred_r = self.net(x_r, t_r)
+        initial_diff = torch.abs(u_pred_i - sol(x_i, t_i))
+        bords_diff = torch.abs(u_pred_b - sol(x_b, t_b))
+        domain_diff = torch.abs(u_pred_r - sol(x_r, t_r))
+        numerator = torch.sum(initial_diff) + \
+            torch.sum(bords_diff)+torch.sum(domain_diff)
+        denominator = torch.sum(torch.abs(sol(x_i, t_i))) + \
+            torch.sum(torch.abs(sol(x_b, t_b))) + \
+            torch.sum(torch.abs(sol(x_r, t_r)))
+        return torch.div(numerator, denominator).item()

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from network import PINN
 import torch
 import torch.functional as F
+from real_sol import real_sol
 
 # pour utiliser le gpu au lieu de cpu
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -236,10 +237,11 @@ def plot1dgrid_real(lb, ub, N, model, k, with_rnn=False):
 # Plot train and val losses on same figure
 
 
-def plot_loss(train_losses, val_losses):
+def plot_loss(train_losses, val_losses, accuracy):
     plt.style.use('dark_background')
     plt.plot(train_losses, label='train')
     plt.plot(val_losses, label='val')
+    plt.plot(accuracy, label="accuracy")
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
@@ -255,24 +257,27 @@ def train(model, train_data, val_data,
     epochs = tqdm(range(epochs), desc="Training")
     losses = []
     val_losses = []
+    acc = []
     for epoch in epochs:
         # Shuffle train_data
         # On remélange pr pas entrainer sur la mm chose ds le mm ordre
         index_shuf = torch.randperm(train_data[0].shape[0])
-        train_data_new = [train_data[0][index_shuf], train_data[1][index_shuf], train_data[2][index_shuf], train_data[3]
-                          [index_shuf], train_data[4][index_shuf], train_data[5][index_shuf], train_data[6][index_shuf], train_data[7][index_shuf]]
+        train_data_new = [train_data[i][index_shuf]
+                          for i in range(len(train_data))]
         train_data = train_data_new
         loss = model.train_step(train_data)
         val_loss = model.val_step(val_data)
+        accuracy = model.accuracy_step(val_data)
         epochs.set_postfix(loss=loss, epochs=epoch, val_loss=val_loss)
         losses.append(loss)
         val_losses.append(val_loss)
+        acc.append(accuracy)
         if epoch % 100 == 0:
             plot1dgrid_real(lb, ub, N, model, epoch)
         if epoch % 1000 == 0:
             torch.save(model.net.state_dict(), f"results/model_{epoch}.pt")
         # Plot_losses
-        plot_loss(losses, val_losses)
+        plot_loss(losses, val_losses, acc)
 
 
 def train_rnn(model, train_data, val_data, epochs):
