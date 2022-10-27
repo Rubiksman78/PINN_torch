@@ -1,10 +1,11 @@
-import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as plt
-from equation import *
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch import optim
 
-DTYPE = 'float32'
-tf.keras.backend.set_floatx(DTYPE)
+from torch.autograd import Variable
+from torch.autograd import grad
+import numpy as np
 
 
 def domain_boundaries(tmin, tmax, xmin, xmax):
@@ -12,8 +13,8 @@ def domain_boundaries(tmin, tmax, xmin, xmax):
     Input: desired limits for the domain
     Output: domain boundaries in tensors
     """
-    lb, ub = tf.constant([tmin, xmin], dtype=DTYPE), tf.constant(
-        [tmax, xmax], dtype=DTYPE)  # Frontières basse et haute pour toute variable
+    lb, ub = torch.tensor([tmin, xmin]), torch.tensor(
+        [tmax, xmax])  # Frontières basse et haute pour toute variable
     return lb, ub
 
 
@@ -27,7 +28,8 @@ def set_training_data(tmin, tmax, xmin, xmax, dimension, N_0, N_b, N_r, speed=Tr
     lb, ub = domain_boundaries(tmin, tmax, xmin, xmax)
 
     # Initial conditions
-    t_0 = tf.ones((N_0, 1), dtype=DTYPE)*lb[0]  # lower time boundary
+    t_0 = torch.ones((N_0, 1))*lb[0]  # lower time boundary
+
     # uniform distribution initial points
     x_0 = tf.random.uniform((N_0, dimension), lb[1], ub[1], dtype=DTYPE)
     X_0 = t_0
