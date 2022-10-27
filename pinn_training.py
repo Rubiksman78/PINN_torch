@@ -289,9 +289,18 @@ def train(model, train_data, val_data,
     for epoch in epochs:
         # Shuffle train_data
         # On remélange pr pas entrainer sur la mm chose ds le mm ordre
-        index_shuf = torch.randperm(train_data[0].shape[0])
-        train_data_new = [train_data[i][index_shuf]
-                          for i in range(len(train_data))]
+        index_shuf_r = torch.randperm(train_data[0].shape[0])
+        index_shuf_b = torch.randperm(train_data[2].shape[0])
+        index_shuf_i = torch.randperm(train_data[5].shape[0])
+        x_r_train = train_data[0][index_shuf_r]
+        t_r_train = train_data[1][index_shuf_r]
+        u_b_train = train_data[2][index_shuf_b]
+        x_b_train = train_data[3][index_shuf_b]
+        t_b_train = train_data[4][index_shuf_b]
+        u_i_train = train_data[5][index_shuf_i]
+        x_i_train = train_data[6][index_shuf_i]
+        t_i_train = train_data[7][index_shuf_i]
+        train_data_new = [x_r_train, t_r_train, u_b_train, x_b_train, t_b_train, u_i_train, x_i_train, t_i_train]
         train_data = train_data_new
         loss = model.train_step(train_data)
         val_loss = model.val_step(val_data)
