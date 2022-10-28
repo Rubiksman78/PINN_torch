@@ -52,7 +52,7 @@ def plot_real_sol3D(lb, ub, N):
     plt.close()
 
 
-# lb = [0, 0]
+lb = [0, 0]
 # ub = [1, 1]
 # N = 100
 # plot_real_sol3D(lb, ub, N)
