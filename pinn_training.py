@@ -216,7 +216,7 @@ def plot1dgrid_real(lb, ub, N, model, k, with_rnn=False):
         T = T.transpose(0, 1)
         X1 = X1.transpose(0, 1)
     upred = model(X1, T)
-    U = torch.squeeze(upred).cpu().detach().numpy()
+    U = torch.squeeze(upred).detach().cpu().numpy()
     U = upred.view(N, N).detach().cpu().numpy()
     T, X1 = T.view(N, N).detach().cpu().numpy(), X1.view(
         N, N).detach().cpu().numpy()
