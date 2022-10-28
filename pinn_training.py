@@ -227,10 +227,17 @@ def plot1dgrid_real(lb, ub, N, model, k, with_rnn=False):
     plt.style.use('dark_background')
 
     fig = plt.figure()
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(121)
     ax.scatter(T, X1, c=U, marker='X', vmin=-1, vmax=1)
     ax.set_xlabel('$t$')
     ax.set_ylabel('$x1$')
+
+    # Partie 3d
+    ax1 = fig.add_subplot(122, projection='3d')
+    ax1.scatter(T, X1, U, c=U, marker='X', vmin=-1, vmax=1)
+    ax1.set_xlabel('$t$')
+    ax1.set_ylabel('$x1$')
+
     plt.savefig(f'results/generated_{k}')
     plt.close()
 

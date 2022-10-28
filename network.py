@@ -6,7 +6,7 @@ from torch import optim
 from torch.autograd import grad
 from itertools import chain
 import torchsummary
-from real_sol import real_sol, sol
+from real_sol import real_sol
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -216,13 +216,13 @@ class PINN():
         u_pred_b = self.net(x_b, t_b)
         u_pred_r = self.net(x_r, t_r)
 
-        initial_diff = torch.abs(u_pred_i - sol(x_i, t_i))
-        bords_diff = torch.abs(u_pred_b - sol(x_b, t_b))
-        domain_diff = torch.abs(u_pred_r - sol(x_r, t_r))
+        initial_diff = torch.abs(u_pred_i - real_sol(x_i, t_i))
+        bords_diff = torch.abs(u_pred_b - real_sol(x_b, t_b))
+        domain_diff = torch.abs(u_pred_r - real_sol(x_r, t_r))
 
         numerator = torch.sum(initial_diff) + \
             torch.sum(bords_diff)+torch.sum(domain_diff)
-        denominator = torch.sum(torch.abs(sol(x_i, t_i))) + \
-            torch.sum(torch.abs(sol(x_b, t_b))) + \
-            torch.sum(torch.abs(sol(x_r, t_r)))
+        denominator = torch.sum(torch.abs(real_sol(x_i, t_i))) + \
+            torch.sum(torch.abs(real_sol(x_b, t_b))) + \
+            torch.sum(torch.abs(real_sol(x_r, t_r)))
         return torch.div(numerator, denominator).item()/len(u_pred_b)
