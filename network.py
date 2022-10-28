@@ -6,12 +6,13 @@ from torch import optim
 from torch.autograd import grad
 from itertools import chain
 import torchsummary
-from real_sol import real_sol, sol
+from real_sol import real_sol
 from bails_sombres import RNN, Transformer
 from variable_speed import c_fun
 from config import DEFAULT_CONFIG
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1 et 1
     def __init__(self):
@@ -23,6 +24,8 @@ class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1
         return 2*(x - self.lb)/(self.ub - self.lb)-1
 
 # Réseau de neurones
+
+
 class network(nn.Module):
     def __init__(self):
         super().__init__()
@@ -46,8 +49,9 @@ class network(nn.Module):
         x = torch.sin(x)
         return x
 
+
 class PINN():
-    def __init__(self, with_rnn=True):
+    def __init__(self, with_rnn=False):
         if with_rnn == True:
             #self.net = RNN(2, 64, 1, num_layers=4).to(device)
             self.net = Transformer(2, 16, 1, num_layers=4).to(device)
@@ -61,7 +65,7 @@ class PINN():
         self.loss_history_val = []
 
     def _model_summary(self):
-        print(torchsummary.summary(self.net, [(32, 1), (32,1)]))
+        print(torchsummary.summary(self.net, [(32, 1), (32, 1)]))
 
     # Calculer résidu
     def nth_gradient(self, f, wrt, n):
@@ -182,12 +186,13 @@ class PINN():
 
     def accuracy_step(self, val_data):
         x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = val_data
+        self.net.eval()
         u_pred_i = self.net(x_i, t_i)
         u_pred_b = self.net(x_b, t_b)
         u_pred_r = self.net(x_r, t_r)
-        real_u_i = sol(x_i, t_i)
-        real_u_b = sol(x_b, t_b)
-        real_u_r = sol(x_r, t_r)
+        real_u_i = real_sol(x_i, t_i)
+        real_u_b = real_sol(x_b, t_b)
+        real_u_r = real_sol(x_r, t_r)
         num_i = torch.mean(torch.square(u_pred_i-real_u_i))
         num_b = torch.mean(torch.square(u_pred_b-real_u_b))
         num_r = torch.mean(torch.square(u_pred_r-real_u_r))
@@ -196,5 +201,4 @@ class PINN():
         den_r = torch.mean(torch.square(real_u_r))
         num = num_i + num_b + num_r
         den = den_i + den_b + den_r
-        return  (num/den).item()
-    
+        return (num/den).item()

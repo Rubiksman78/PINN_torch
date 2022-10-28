@@ -63,8 +63,8 @@ def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
     """
     fig = plt.figure(figsize=(9, 6))
     ax = fig.add_subplot(111)
-    ax.scatter(t_0, x_0[:, 0], c=u_0, marker='X')
-    ax.scatter(t_b, x_b[:, 0], c=u_b, marker='X')
+    ax.scatter(t_0, x_0[:, 0], c=u_0, marker='X', vmin=-1, vmax=1)
+    ax.scatter(t_b, x_b[:, 0], c=u_b, marker='X', vmin=-1, vmax=1)
     ax.scatter(t_r, x_r[:, 0], c='r', marker='.', alpha=0.1)
     ax.set_xlabel('$t$')
     ax.set_ylabel('$x1$')
@@ -182,7 +182,9 @@ def val_split_with_labels(x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2):
 
 ########################################################### PLOTTING FUNCTIONS ###########################################################
 ##########################################################################################################################################
-def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
+
+
+def plot1dgrid_real(lb, ub, N, model, k, with_rnn=False):
     """Same for the real solution"""
     model = model.net
     x1space = np.linspace(lb[0], ub[0], N)
@@ -197,7 +199,7 @@ def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
         T = T.transpose(0, 1)
         X1 = X1.transpose(0, 1)
     upred = model(X1, T)
-    U = torch.squeeze(upred).cpu().detach().numpy()
+    U = torch.squeeze(upred).detach().cpu().numpy()
     U = upred.view(N, N).detach().cpu().numpy()
     T, X1 = T.view(N, N).detach().cpu().numpy(), X1.view(
         N, N).detach().cpu().numpy()
@@ -208,29 +210,48 @@ def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
     plt.style.use('dark_background')
 
     fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.scatter(T,X1,c=U, marker='X')
+    ax = fig.add_subplot(121)
+    ax.scatter(T, X1, c=U, marker='X')
     ax.set_xlabel('$t$')
     ax.set_ylabel('$x1$')
-    if show:
-        plt.show()
-    else:
-        plt.savefig(f'results/generated_{k}')
-        plt.close()
-   
+
+    # Partie 3d
+    ax1 = fig.add_subplot(122, projection='3d')
+    ax1.scatter(T, X1, U, c=U, marker='X')
+    ax1.set_xlabel('$t$')
+    ax1.set_ylabel('$x1$')
+
+    plt.savefig(f'results/generated_{k}')
+    plt.close()
 
 # Plot train and val losses on same figure
-def plot_loss(train_losses, val_losses,accuracy,rnn=False):
+def plot_loss(train_losses, val_losses, accuracy):
+    fig, (ax1, ax2) = plt.subplots(2, 1)
     plt.style.use('dark_background')
-    plt.plot(train_losses, label='train')
-    plt.plot(val_losses, label='val')
-    if not rnn:
-        plt.plot(accuracy, label="accuracy")
+    ax1.plot(train_losses, label='train')
+    ax1.plot(val_losses, label='val')
+    ax2.plot(accuracy, label="accuracy", color='red')
+
+    ax1.set(ylabel='Loss')
+    ax2.set(ylabel='Accuracy')
     plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
+
+    ax1.legend()
+    ax2.legend()
     plt.savefig(f'results/loss')
     plt.close()
+
+
+# def plot_loss(train_losses, val_losses, accuracy):
+#     plt.style.use('dark_background')
+#     plt.plot(train_losses, label='train')
+#     plt.plot(val_losses, label='val')
+#     plt.plot(accuracy, label="accuracy")
+#     plt.xlabel('Epoch')
+#     plt.ylabel('Loss')
+#     plt.legend()
+#     plt.savefig(f'results/loss')
+#     plt.close()
 
 ########################################################### TRAINING ###########################################################
 ################################################################################################################################
@@ -286,10 +307,10 @@ def train_rnn(model,train_data,val_data,epochs):
         losses.append(loss)
         val_losses.append(val_loss)
         if epoch % 100 == 0:
-            plot1dgrid_real(lb, ub, N, model, epoch, True)
+            plot1dgrid_real(lb, ub, N_plotting, model, epoch, True)
         if epoch+1 % 1000 == 0:
             model.net.save_weights(f'weights/weights_{epoch}')
-        plot_loss(losses, val_losses,None,rnn=True)
+        plot_loss(losses, val_losses)
 
 if __name__ == '__main__':
     # pour utiliser le gpu au lieu de cpu
