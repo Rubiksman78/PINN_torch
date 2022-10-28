@@ -82,12 +82,12 @@ class PINN():
         m = x.shape[0]
         return [x[i] for i in range(m)]
 
-    def f(self, x, t,variable_speed=False):
+    def f(self, x, t, variable_speed=False):
         u = self.net(x, t)  # net à définir
         u_tt = self.nth_gradient(self.flat(u), wrt=t, n=2)
         u_xx = self.nth_gradient(self.flat(u), wrt=x, n=2)
         if variable_speed:
-            c = c_fun(x,t)
+            c = c_fun(x, t)
             residual = u_tt - c*u_xx
         else:
             residual = u_tt - 4*u_xx
