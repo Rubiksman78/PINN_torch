@@ -6,32 +6,26 @@ from network import PINN
 import torch
 import torch.functional as F
 from real_sol import real_sol
+from config import DEFAULT_CONFIG
 
-# pour utiliser le gpu au lieu de cpu
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
-
-with_rnn = True
-net = PINN(with_rnn=with_rnn)
-#net._model_summary()
 
 ########################################################### POINTS DEFINITION ###########################################################
 #########################################################################################################################################
-N_i,N_b,N_r = 64,64,64
-l_b,u_b = 0,1
-t_i = torch.zeros(N_i,1)
-x_i = torch.linspace(l_b,u_b,N_i).view(N_i,1)
-#u_0 = torch.sin(np.pi*x_0)
-u_i = t_i + 1*(torch.sin(np.pi*x_i) + 0.5*torch.sin(4*np.pi*x_i))
+def define_points(N_i,N_b,N_r,l_b,u_b):
+    t_i = torch.zeros(N_i,1)
+    x_i = torch.linspace(l_b,u_b,N_i).view(N_i,1)
+    #u_0 = torch.sin(np.pi*x_0)
+    u_i = t_i + 1*(torch.sin(np.pi*x_i) + 0.5*torch.sin(4*np.pi*x_i))
 
-t_b = torch.linspace(l_b,u_b,N_b).view(N_b,1)
-#x_b evenly distributed in 0 or 1 with total N_b points
-x_b = torch.bernoulli(0.5*torch.ones(N_b,1))
-u_b = torch.zeros(N_b,1)
+    t_b = torch.linspace(l_b,u_b,N_b).view(N_b,1)
+    #x_b evenly distributed in 0 or 1 with total N_b points
+    x_b = torch.bernoulli(0.5*torch.ones(N_b,1))
+    u_b = torch.zeros(N_b,1)
 
-# On génère des pts randoms dans le domaine sur lesquels on va calculer le residu
-t_r = torch.rand(N_r, 1)
-x_r = torch.rand(N_r, 1)
+    # On génère des pts randoms dans le domaine sur lesquels on va calculer le residu
+    t_r = torch.rand(N_r, 1)
+    x_r = torch.rand(N_r, 1)
+    return t_i,x_i,u_i,t_b,x_b,u_b,t_r,x_r
 
 #Normalize data with min max
 def normalize_data(x_r,t_r,
@@ -58,10 +52,7 @@ def unnormalize_data(x_r,t_r,
     u_i,x_i,t_i = u_i*(u_i_max-u_i_min)+u_i_min,x_i*(x_i_max-x_i_min)+x_i_min,t_i*(t_i_max-t_i_min)+t_i_min
     return x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i
 
-x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = normalize_data(x_r,t_r,
-        u_b,x_b,t_b,
-        u_i,x_i,t_i)
-print("Training points",x_i.min(),x_i.max(),t_i.min(),t_i.max())
+
 ############################################################## POINTS PLOTTING #############################################################
 ############################################################################################################################################
 def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
@@ -80,19 +71,8 @@ def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
     ax.set_title('Positions of collocation points and boundary data')
     plt.show()
 
-plot_training_points(t_i.data.numpy(),
-                     t_b.data.numpy(),
-                     t_r.data.numpy(),
-                     x_i.data.numpy(),
-                     x_b.data.numpy(),
-                     x_r.data.numpy(),
-                     u_i.data.numpy(),
-                     u_b.data.numpy())
-
 ############################################################## SEQUENCES FOR RNN ###################################################################
 ####################################################################################################################################################
-
-
 def data_to_rnn_sequences(data, seq_len):
     """Converts data to sequences of length seq_len"""
     sequences = []
@@ -112,7 +92,6 @@ def all_data_to_sequences(x_r, t_r,
         x_i, seq_len), data_to_rnn_sequences(t_i, seq_len)
     return x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i
 
-
 def sequence_to_label(sequence):
     """Converts a sequence to a label"""
     return sequence[:, -1, :]
@@ -130,18 +109,7 @@ def all_data_to_label(x_r, t_r,
         device), x_b.to(device), t_b.to(device), u_i.to(device), x_i.to(device), t_i.to(device)
     return x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i
 
-
-if with_rnn:
-    x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = all_data_to_sequences(x_r, t_r,
-                                                                   u_b, x_b, t_b,
-                                                                   u_i, x_i, t_i, seq_len=10)
-    x_r_label,t_r_label,u_b_label,x_b_label,t_b_label,u_i_label,x_i_label,t_i_label = all_data_to_label(x_r,t_r,
-            u_b,x_b,t_b,
-            u_i,x_i,t_i)
-
 ############################################################## TRAIN VAL SPLIT ###################################################################
-
-
 def val_split(x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2):
     """Splits data into training and validation set with random order"""
     x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = x_r.to(device), t_r.to(device), u_b.to(
@@ -212,16 +180,6 @@ def val_split_with_labels(x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2):
         u_i_val), sequence_to_label(x_i_val), sequence_to_label(t_i_val)
     return [x_r_train, t_r_train, u_b_train, x_b_train, t_b_train, u_i_train, x_i_train, t_i_train], [x_r_val, t_r_val, u_b_val, x_b_val, t_b_val, u_i_val, x_i_val, t_i_val], [x_r_train_label, t_r_train_label, u_b_train_label, x_b_train_label, t_b_train_label, u_i_train_label, x_i_train_label, t_i_train_label], [x_r_val_label, t_r_val_label, u_b_val_label, x_b_val_label, t_b_val_label, u_i_val_label, x_i_val_label, t_i_val_label]
 
-
-if not with_rnn:
-    train_data, val_data = val_split(
-        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2)
-else:
-    train_data, val_data, train_data_labels, val_data_labels = val_split_with_labels(
-        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2)
-    train_data = train_data + train_data_labels
-    val_data = val_data + val_data_labels
-
 ########################################################### PLOTTING FUNCTIONS ###########################################################
 ##########################################################################################################################################
 def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
@@ -262,8 +220,6 @@ def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
    
 
 # Plot train and val losses on same figure
-
-
 def plot_loss(train_losses, val_losses,accuracy,rnn=False):
     plt.style.use('dark_background')
     plt.plot(train_losses, label='train')
@@ -278,8 +234,6 @@ def plot_loss(train_losses, val_losses,accuracy,rnn=False):
 
 ########################################################### TRAINING ###########################################################
 ################################################################################################################################
-
-
 def train(model, train_data, val_data,
           epochs):
     epochs = tqdm(range(epochs), desc="Training")
@@ -310,13 +264,12 @@ def train(model, train_data, val_data,
         val_losses.append(val_loss)
         acc.append(accuracy)
         if epoch % 100 == 0:
-            plot1dgrid_real(lb, ub, N, model, epoch)
+            plot1dgrid_real(lb, ub, N_plotting, model, epoch)
         if epoch % 1000 == 0:
             torch.save(model.net.state_dict(), f"results/model_{epoch}.pt")
         # Plot_losses
         plot_loss(losses, val_losses, acc)
 
-      
 def train_rnn(model,train_data,val_data,epochs):
     epochs = tqdm(range(epochs),desc="Training")
     losses = []
@@ -338,15 +291,53 @@ def train_rnn(model,train_data,val_data,epochs):
             model.net.save_weights(f'weights/weights_{epoch}')
         plot_loss(losses, val_losses,None,rnn=True)
 
-lb = [-1,-1]
-ub = [1,1]
-N = 1000
+if __name__ == '__main__':
+    # pour utiliser le gpu au lieu de cpu
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
 
-with torch.backends.cudnn.flags(enabled=False):
+    with_rnn = False
+    net = PINN(with_rnn=with_rnn)
+    #net._model_summary()
+    N_i,N_b,N_r = DEFAULT_CONFIG['N_i'],DEFAULT_CONFIG['N_b'],DEFAULT_CONFIG['N_r']
+    l_b,u_b = DEFAULT_CONFIG['l_b'],DEFAULT_CONFIG['u_b']
+    t_i,x_i,u_i,t_b,x_b,u_b,t_r,x_r = define_points(N_i,N_b,N_r,l_b,u_b)
+    x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = normalize_data(x_r,t_r,
+        u_b,x_b,t_b,
+        u_i,x_i,t_i)
+    plot_training_points(t_i.data.numpy(),
+                    t_b.data.numpy(),
+                    t_r.data.numpy(),
+                    x_i.data.numpy(),
+                    x_b.data.numpy(),
+                    x_r.data.numpy(),
+                    u_i.data.numpy(),
+                    u_b.data.numpy())
     if with_rnn:
-        train_rnn(net, train_data, val_data, epochs=1000)
+        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = all_data_to_sequences(x_r, t_r,
+                                                                    u_b, x_b, t_b,
+                                                                    u_i, x_i, t_i, seq_len=10)
+        x_r_label,t_r_label,u_b_label,x_b_label,t_b_label,u_i_label,x_i_label,t_i_label = all_data_to_label(x_r,t_r,
+                u_b,x_b,t_b,
+                u_i,x_i,t_i)
+    if not with_rnn:
+        train_data, val_data = val_split(
+            x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.1)
     else:
-        train(net,train_data,val_data,epochs=10000)
+        train_data, val_data, train_data_labels, val_data_labels = val_split_with_labels(
+            x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.1)
+        train_data = train_data + train_data_labels
+        val_data = val_data + val_data_labels
+    lb = [-1,-1]
+    ub = [1,1]
+    N_plotting = DEFAULT_CONFIG['N_plotting']
+    epochs = DEFAULT_CONFIG['epochs']
 
-net.net.load_state_dict(torch.load("model_9000.pt"))
-plot1dgrid_real(lb,ub,N,net,10000,show=True)
+    with torch.backends.cudnn.flags(enabled=False):
+        if with_rnn:
+            train_rnn(net, train_data, val_data, epochs=epochs)
+        else:
+            train(net,train_data,val_data,epochs=epochs)
+
+    net.net.load_state_dict(torch.load("model_9000.pt"))
+    plot1dgrid_real(lb,ub,N_plotting,net,10000,show=True)

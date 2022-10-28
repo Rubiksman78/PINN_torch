@@ -8,6 +8,8 @@ from itertools import chain
 import torchsummary
 from real_sol import real_sol, sol
 from bails_sombres import RNN, Transformer
+from variable_speed import c_fun
+from config import DEFAULT_CONFIG
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -27,13 +29,11 @@ class network(nn.Module):
         self.num_neurons = 64
         self.num_layers = 4
         self.scaling_layer = Scaling_layer()
-        # 2 = dimension d'entrée, x et t
         self.linear_input = nn.Linear(2, self.num_neurons)
         self.linear_hidden = nn.ModuleList(
             [nn.Linear(self.num_neurons, self.num_neurons) for i in range(self.num_layers)])
         self.linear_output = nn.Linear(self.num_neurons, 1)
         self.activation = nn.Tanh()
-        # ça va off 20% des neurones de tps en tps pr forcer le modèle à bien s'entrainer
         self.dropout = nn.Dropout(0.2)
 
     def forward(self, x, t):
@@ -48,14 +48,14 @@ class network(nn.Module):
 
 class PINN():
     def __init__(self, with_rnn=True):
-        #self.net = network().to(device)
         if with_rnn == True:
             #self.net = RNN(2, 64, 1, num_layers=4).to(device)
             self.net = Transformer(2, 16, 1, num_layers=4).to(device)
         else:
             self.net = network().to(device)
+            #self.net = CNN_one_dimension().to(device)
         self.optimizer = optim.Adam(
-            self.net.parameters(), lr=1e-3)  # descente de gradient
+            self.net.parameters(), lr=DEFAULT_CONFIG['lr'])  # descente de gradient
         #self.optimizer = optim.LBFGS(self.net.parameters(), lr=1e-3)
         self.loss_history = []
         self.loss_history_val = []
@@ -78,11 +78,15 @@ class PINN():
         m = x.shape[0]
         return [x[i] for i in range(m)]
 
-    def f(self, x, t):
+    def f(self, x, t,variable_speed=False):
         u = self.net(x, t)  # net à définir
         u_tt = self.nth_gradient(self.flat(u), wrt=t, n=2)
         u_xx = self.nth_gradient(self.flat(u), wrt=x, n=2)
-        residual = u_tt - 4*u_xx
+        if variable_speed:
+            c = c_fun(x,t)
+            residual = u_tt - c*u_xx
+        else:
+            residual = u_tt - 4*u_xx
         return residual
 
     # Calculer loss résidu + loss bords
@@ -123,7 +127,7 @@ class PINN():
                 x_b, requires_grad=False).to(device), Variable(t_b, requires_grad=False).to(device)
             u_i, x_i, t_i = Variable(u_i, requires_grad=False).to(device), Variable(
                 x_i, requires_grad=False).to(device), Variable(t_i, requires_grad=False).to(device)
-        loss_residual = torch.mean(torch.square(
+        loss_residual = torch.mean(torch.abs(
             self.f(x_r, t_r)))  # + u_capteur - u_pred
         u_pred_b = self.net(x_b, t_b)
         loss_bords = torch.mean((u_pred_b-u_b)**2)

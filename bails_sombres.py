@@ -57,3 +57,24 @@ class Transformer(nn.Module):
         x = nn.Tanh()(self.fc1(x))
         out = self.fc2(x[:, -1, :])
         return out
+
+
+class GRU(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=2, lstm=False):
+        super(GRU, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = lstm
+        self.rnn = nn.GRU(input_size, hidden_size,
+                          num_layers, batch_first=True)
+        self.fc1 = nn.Linear(hidden_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x, t):
+        x = torch.cat([x, t], dim=-1)
+        h0 = torch.zeros(self.num_layers, x.size(0),
+                         self.hidden_size).to(device)
+        out, _ = self.rnn(x, h0)
+        out = nn.Tanh()(self.fc1(out))
+        out = self.fc2(out[:, -1, :])
+        return out
