@@ -11,13 +11,13 @@ from real_sol import real_sol
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-with_rnn = False
+with_rnn = True
 net = PINN(with_rnn=with_rnn)
-net._model_summary()
+#net._model_summary()
 
 ########################################################### POINTS DEFINITION ###########################################################
 #########################################################################################################################################
-N_i,N_b,N_r = 2000,2000,20000
+N_i,N_b,N_r = 64,64,64
 l_b,u_b = 0,1
 t_i = torch.zeros(N_i,1)
 x_i = torch.linspace(l_b,u_b,N_i).view(N_i,1)
@@ -80,7 +80,6 @@ def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
     ax.set_title('Positions of collocation points and boundary data')
     plt.show()
 
-
 plot_training_points(t_i.data.numpy(),
                      t_b.data.numpy(),
                      t_r.data.numpy(),
@@ -136,9 +135,9 @@ if with_rnn:
     x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = all_data_to_sequences(x_r, t_r,
                                                                    u_b, x_b, t_b,
                                                                    u_i, x_i, t_i, seq_len=10)
-    # x_r_label,t_r_label,u_b_label,x_b_label,t_b_label,u_i_label,x_i_label,t_i_label = all_data_to_label(x_r,t_r,
-    #        u_b,x_b,t_b,
-    #        u_i,x_i,t_i)
+    x_r_label,t_r_label,u_b_label,x_b_label,t_b_label,u_i_label,x_i_label,t_i_label = all_data_to_label(x_r,t_r,
+            u_b,x_b,t_b,
+            u_i,x_i,t_i)
 
 ############################################################## TRAIN VAL SPLIT ###################################################################
 
@@ -265,11 +264,12 @@ def plot1dgrid_real(lb,ub,N,model,k,with_rnn=False,show=False):
 # Plot train and val losses on same figure
 
 
-def plot_loss(train_losses, val_losses, accuracy):
+def plot_loss(train_losses, val_losses,accuracy,rnn=False):
     plt.style.use('dark_background')
     plt.plot(train_losses, label='train')
     plt.plot(val_losses, label='val')
-    plt.plot(accuracy, label="accuracy")
+    if not rnn:
+        plt.plot(accuracy, label="accuracy")
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
@@ -336,7 +336,7 @@ def train_rnn(model,train_data,val_data,epochs):
             plot1dgrid_real(lb, ub, N, model, epoch, True)
         if epoch+1 % 1000 == 0:
             model.net.save_weights(f'weights/weights_{epoch}')
-        plot_loss(losses, val_losses)
+        plot_loss(losses, val_losses,None,rnn=True)
 
 lb = [-1,-1]
 ub = [1,1]
