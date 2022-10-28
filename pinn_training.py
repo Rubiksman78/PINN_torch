@@ -238,15 +238,32 @@ def plot1dgrid_real(lb, ub, N, model, k, with_rnn=False):
 
 
 def plot_loss(train_losses, val_losses, accuracy):
+    fig, (ax1, ax2) = plt.subplots(2, 1)
     plt.style.use('dark_background')
-    plt.plot(train_losses, label='train')
-    plt.plot(val_losses, label='val')
-    plt.plot(accuracy, label="accuracy")
+    ax1.plot(train_losses, label='train')
+    ax1.plot(val_losses, label='val')
+    ax2.plot(accuracy, label="accuracy", color='red')
+
+    ax1.set(ylabel='Loss')
+    ax2.set(ylabel='Accuracy')
     plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
+
+    ax1.legend()
+    ax2.legend()
     plt.savefig(f'results/loss')
     plt.close()
+
+
+# def plot_loss(train_losses, val_losses, accuracy):
+#     plt.style.use('dark_background')
+#     plt.plot(train_losses, label='train')
+#     plt.plot(val_losses, label='val')
+#     plt.plot(accuracy, label="accuracy")
+#     plt.xlabel('Epoch')
+#     plt.ylabel('Loss')
+#     plt.legend()
+#     plt.savefig(f'results/loss')
+#     plt.close()
 
 ########################################################### TRAINING ###########################################################
 ################################################################################################################################

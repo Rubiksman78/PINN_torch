@@ -225,4 +225,4 @@ class PINN():
         denominator = torch.sum(torch.abs(sol(x_i, t_i))) + \
             torch.sum(torch.abs(sol(x_b, t_b))) + \
             torch.sum(torch.abs(sol(x_r, t_r)))
-        return torch.div(numerator, denominator).item()
+        return torch.div(numerator, denominator).item()/len(u_pred_b)
