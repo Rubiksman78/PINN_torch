@@ -7,7 +7,7 @@ from torch.autograd import grad
 from itertools import chain
 import torchsummary
 from real_sol import real_sol
-
+from bails_sombres import RNN, Transformer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -19,7 +19,7 @@ class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1
         self.ub = torch.tensor([1.0, 1.0]).to(device)
 
     def forward(self, x):
-        return 2.0*(x - self.lb)/(self.ub - self.lb) - 1.0
+        return 2*(x - self.lb)/(self.ub - self.lb)-1
 
 # Réseau de neurones
 
@@ -27,7 +27,7 @@ class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1
 class network(nn.Module):
     def __init__(self):
         super().__init__()
-        self.num_neurons = 32
+        self.num_neurons = 64
         self.num_layers = 4
         self.scaling_layer = Scaling_layer()
         # 2 = dimension d'entrée, x et t
@@ -46,46 +46,16 @@ class network(nn.Module):
             x = self.activation(linear(x))
             x = self.dropout(x)
         x = self.linear_output(x)
+        x = torch.sin(x)
         return x
-
-
-class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=2, lstm=False):
-        super(RNN, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.lstm = lstm
-        if lstm:
-            self.rnn = nn.LSTM(input_size, hidden_size,
-                               num_layers, batch_first=True)
-        else:
-            self.rnn = nn.RNN(input_size, hidden_size,
-                              num_layers, batch_first=True)
-        self.fc1 = nn.Linear(hidden_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x, t):
-        x = torch.cat([x, t], dim=-1)
-        h0 = torch.zeros(self.num_layers, x.size(0),
-                         self.hidden_size).to(device)
-        if self.lstm:
-            c0 = torch.zeros(self.num_layers, x.size(0),
-                             self.hidden_size).to(device)
-            out, (hn, cn) = self.rnn(x, (h0, c0))
-            hn = hn.view(-1, self.hidden_size)
-            out = nn.Tanh()(hn)
-        else:
-            out, _ = self.rnn(x, h0)
-        out = nn.Tanh()(self.fc1(out))
-        out = self.fc2(out[:, -1, :])
-        return out
 
 
 class PINN():
     def __init__(self, with_rnn=True):
         #self.net = network().to(device)
         if with_rnn == True:
-            self.net = RNN(2, 512, 1, num_layers=4).to(device)
+            #self.net = RNN(2, 64, 1, num_layers=4).to(device)
+            self.net = Transformer(2, 16, 1, num_layers=4).to(device)
         else:
             self.net = network().to(device)
         self.optimizer = optim.Adam(
@@ -95,7 +65,7 @@ class PINN():
         self.loss_history_val = []
 
     def _model_summary(self):
-        print(torchsummary.summary(self.net, [(1, 1), (1, 1)]))
+        print(torchsummary.summary(self.net, [(32, 1), (32, 1)]))
 
     # Calculer résidu
     def nth_gradient(self, f, wrt, n):
@@ -138,7 +108,7 @@ class PINN():
         loss_bords = torch.mean((u_pred_b-u_b_label)**2)
         u_pred_i = self.net(x_i, t_i)
         loss_init = torch.mean((u_pred_i-u_i_label)**2)
-        return loss_residual + loss_bords + loss_init
+        return 0.1*loss_residual + loss_bords + loss_init
 
     def loss_fn(self, x_r, t_r,
                 u_b, x_b, t_b,
@@ -215,14 +185,15 @@ class PINN():
         u_pred_i = self.net(x_i, t_i)
         u_pred_b = self.net(x_b, t_b)
         u_pred_r = self.net(x_r, t_r)
-
-        initial_diff = torch.abs(u_pred_i - real_sol(x_i, t_i))
-        bords_diff = torch.abs(u_pred_b - real_sol(x_b, t_b))
-        domain_diff = torch.abs(u_pred_r - real_sol(x_r, t_r))
-
-        numerator = torch.sum(initial_diff) + \
-            torch.sum(bords_diff)+torch.sum(domain_diff)
-        denominator = torch.sum(torch.abs(real_sol(x_i, t_i))) + \
-            torch.sum(torch.abs(real_sol(x_b, t_b))) + \
-            torch.sum(torch.abs(real_sol(x_r, t_r)))
-        return torch.div(numerator, denominator).item()/len(u_pred_b)
+        real_u_i = real_sol(x_i, t_i)
+        real_u_b = real_sol(x_b, t_b)
+        real_u_r = real_sol(x_r, t_r)
+        num_i = torch.mean(torch.square(u_pred_i-real_u_i))
+        num_b = torch.mean(torch.square(u_pred_b-real_u_b))
+        num_r = torch.mean(torch.square(u_pred_r-real_u_r))
+        den_i = torch.mean(torch.square(real_u_i))
+        den_b = torch.mean(torch.square(real_u_b))
+        den_r = torch.mean(torch.square(real_u_r))
+        num = num_i + num_b + num_r
+        den = den_i + den_b + den_r
+        return (num/den).item()

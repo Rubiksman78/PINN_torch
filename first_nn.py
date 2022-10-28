@@ -31,6 +31,7 @@ class NN(nn.Module):
         last_layer = self.model(x)
         return F.log_softmax(last_layer, dim=1)
 
+
 # Train step
 
 
