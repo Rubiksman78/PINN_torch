@@ -7,12 +7,12 @@ from torch.autograd import grad
 from itertools import chain
 import torchsummary
 from real_sol import real_sol
-from bails_sombres import RNN, Transformer
+from vrac.bails_sombres import RNN, Transformer
 from variable_speed import c_fun
 from config import DEFAULT_CONFIG
+import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1 et 1
     def __init__(self):
@@ -21,46 +21,42 @@ class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1
         self.ub = torch.tensor([1.0, 1.0]).to(device)
 
     def forward(self, x):
-        return 2*(x - self.lb)/(self.ub - self.lb)-1
+        return 2 * (x - self.lb) / (self.ub - self.lb) 
 
 # Réseau de neurones
-
-
-class network(nn.Module):
-    def __init__(self):
+class network(torch.jit.ScriptModule):
+    def __init__(self,N_neurons,N_layers):
         super().__init__()
-        self.num_neurons = 64
-        self.num_layers = 4
+        self.num_neurons = N_neurons
+        self.num_layers = N_layers
         self.scaling_layer = Scaling_layer()
         self.linear_input = nn.Linear(2, self.num_neurons)
         self.linear_hidden = nn.ModuleList(
-            [nn.Linear(self.num_neurons, self.num_neurons) for i in range(self.num_layers)])
+            [nn.Linear(self.num_neurons, self.num_neurons) for _ in range(self.num_layers)])
         self.linear_output = nn.Linear(self.num_neurons, 1)
         self.activation = nn.Tanh()
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.3)
+        self.bn = nn.BatchNorm1d(self.num_neurons)
 
-    def forward(self, x, t):
-        x = self.scaling_layer(torch.cat([x, t], 1))
+    def forward(self, x):
+        #x = self.scaling_layer(x)
         x = self.activation(self.linear_input(x))
         for i, linear in enumerate(self.linear_hidden):
             x = self.activation(linear(x))
+            #x = self.bn(x)
             x = self.dropout(x)
         x = self.linear_output(x)
-        x = torch.sin(x)
         return x
 
-
 class PINN():
-    def __init__(self, with_rnn=False):
+    def __init__(self, with_rnn=False,N_neurons=64,N_layers=4):
         if with_rnn == True:
             #self.net = RNN(2, 64, 1, num_layers=4).to(device)
             self.net = Transformer(2, 16, 1, num_layers=4).to(device)
         else:
-            self.net = network().to(device)
-            #self.net = CNN_one_dimension().to(device)
+            self.net = network(N_neurons,N_layers).to(device)
         self.optimizer = optim.Adam(
             self.net.parameters(), lr=DEFAULT_CONFIG['lr'])  # descente de gradient
-        #self.optimizer = optim.LBFGS(self.net.parameters(), lr=1e-3)
         self.loss_history = []
         self.loss_history_val = []
 
@@ -75,24 +71,111 @@ class PINN():
             f = grads
             if grads is None:
                 print("Bad Grad")
-                return torch.tensor(0.)
+                return None
         return grads
+    
+    def calculate_laplacian(self,model, tensor):
+        laplacian_x = torch.zeros(tensor.shape[0], 1, device=device)
+        laplacian_t = torch.zeros(tensor.shape[0], 1, device=device)
+        for i, tensori in enumerate(tensor):
+            hess = torch.autograd.functional.hessian(model, tensori.unsqueeze(0), create_graph=True)
+            hess = hess.view(2, 2)
+            laplacian_x[i] = hess[0, 0]
+            laplacian_t[i] = hess[1, 1]
+        return laplacian_x, laplacian_t
 
     def flat(self, x):
         m = x.shape[0]
         return [x[i] for i in range(m)]
 
     def f(self, x, t,variable_speed=False):
-        u = self.net(x, t)  # net à définir
-        u_tt = self.nth_gradient(self.flat(u), wrt=t, n=2)
-        u_xx = self.nth_gradient(self.flat(u), wrt=x, n=2)
+        u_xx, u_tt = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
         if variable_speed:
             c = c_fun(x,t)
             residual = u_tt - c*u_xx
         else:
             residual = u_tt - 4*u_xx
+            #lap,_ = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
+            #residual = lap - np.pi**2*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         return residual
 
+    def loss_fn(self, x_r, t_r,
+                u_b, x_b, t_b,
+                u_i, x_i, t_i, validation=False):
+        loss_residual = torch.mean(torch.abs(
+            self.f(x_r, t_r)))  # + u_capteur - u_pred
+        
+        u_pred_b = self.net(torch.cat([x_b, t_b], 1))
+        loss_bords = torch.mean((u_pred_b-u_b)**2)
+        u_pred_i = self.net(torch.cat([x_i, t_i], 1))
+        loss_init = torch.mean((u_pred_i-u_i)**2)
+
+        #Compute derivative of u_pred_b with respect to t_b
+        u_pred_b_t = torch.autograd.functional.jacobian(self.net, torch.cat([x_b, t_b], 1), create_graph=True)
+        
+        loss_bords_der = torch.mean((u_pred_b_t)**2)
+
+        """
+        #Add truncated boundary c u_tx - u_tt = 0 at t = 1
+        t_r_1 = torch.ones_like(t_r, requires_grad=True)
+        u_pred_t_1 = self.net(x_r, t_r_1)
+        u_pred_t_1_x = self.nth_gradient(self.flat(u_pred_t_1), wrt=x_r, n=1)
+        u_pred_t_1_x_t = self.nth_gradient(self.flat(u_pred_t_1_x), wrt=t_r_1, n=1)
+        u_tt = self.nth_gradient(self.flat(u_pred_t_1), wrt=t_r_1, n=2)
+        loss_trunc = torch.mean((u_pred_t_1_x_t - u_tt)**2)
+        """
+        loss_trunc = torch.zeros(1, device=device)
+        return loss_residual,loss_bords,loss_init,loss_bords_der,loss_trunc
+
+    def train_step(self, train_data):
+        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = train_data
+        self.net.train()
+        self.optimizer.zero_grad()
+        loss_residual,loss_bords,loss_init,loss_bords_der,loss_trunc = self.loss_fn(x_r, t_r,
+                            u_b, x_b, t_b,
+                            u_i, x_i, t_i)
+        loss = loss_residual + 2000*loss_bords + 2000*loss_init + 200*loss_bords_der + 0.5*loss_trunc
+        loss.backward()
+        self.optimizer.step()
+        return loss_residual.item(),loss_bords.item(),loss_init.item(),loss_bords_der.item(),loss_trunc.item()
+
+    def val_step(self, val_data):
+        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = val_data
+        self.net.eval()
+        loss_residual,loss_bords,loss_init,loss_bords_der,loss_trunc = self.loss_fn(x_r, t_r,
+                            u_b, x_b, t_b,
+                            u_i, x_i, t_i, validation=False)
+        loss = loss_residual + loss_bords + loss_init + loss_bords_der + loss_trunc
+        return loss.item()
+
+    def accuracy_step(self, val_data):
+        x_r, t_r, _, _, _, _, _, _ = val_data
+        self.net.eval()
+        """
+        u_pred_i = self.net(x_i, t_i)
+        u_pred_b = self.net(x_b, t_b)
+        u_pred_r = self.net(x_r, t_r)
+        real_u_i = real_sol(x_i, t_i)
+        real_u_b = real_sol(x_b, t_b)
+        real_u_r = real_sol(x_r, t_r)
+        num_i = torch.mean(torch.square(u_pred_i-real_u_i))
+        num_b = torch.mean(torch.square(u_pred_b-real_u_b))
+        num_r = torch.mean(torch.square(u_pred_r-real_u_r))
+        den_i = torch.mean(torch.square(real_u_i))
+        den_b = torch.mean(torch.square(real_u_b))
+        den_r = torch.mean(torch.square(real_u_r))
+        num = num_i + num_b + num_r
+        den = den_i + den_b + den_r
+        """
+        #Compute MSE between real_sol and net
+        with torch.no_grad():
+            u_pred = self.net(torch.cat([x_r, t_r], 1))
+            real_u = real_sol(x_r, t_r)
+            num = torch.mean(torch.square(u_pred-real_u))
+            #den = torch.mean(torch.square(real_u))
+        return num.item()
+
+    """
     # Calculer loss résidu + loss bords
     def loss_fn_rnn(self, x_r, t_r,
                     u_b, x_b, t_b,
@@ -113,32 +196,7 @@ class PINN():
         u_pred_i = self.net(x_i, t_i)
         loss_init = torch.mean((u_pred_i-u_i_label)**2)
         return 0.1*loss_residual + loss_bords + loss_init
-
-    def loss_fn(self, x_r, t_r,
-                u_b, x_b, t_b,
-                u_i, x_i, t_i, validation=False):
-        if validation:
-            x_r, t_r = Variable(x_r, requires_grad=False).to(
-                device), Variable(t_r, requires_grad=False).to(device)
-            u_b, x_b, t_b = Variable(u_b, requires_grad=False).to(device), Variable(
-                x_b, requires_grad=False).to(device), Variable(t_b, requires_grad=False).to(device)
-            u_i, x_i, t_i = Variable(u_i, requires_grad=False).to(device), Variable(
-                x_i, requires_grad=False).to(device), Variable(t_i, requires_grad=False).to(device)
-        else:
-            x_r, t_r = Variable(x_r, requires_grad=True).to(
-                device), Variable(t_r, requires_grad=True).to(device)
-            u_b, x_b, t_b = Variable(u_b, requires_grad=False).to(device), Variable(
-                x_b, requires_grad=False).to(device), Variable(t_b, requires_grad=False).to(device)
-            u_i, x_i, t_i = Variable(u_i, requires_grad=False).to(device), Variable(
-                x_i, requires_grad=False).to(device), Variable(t_i, requires_grad=False).to(device)
-        loss_residual = torch.mean(torch.abs(
-            self.f(x_r, t_r)))  # + u_capteur - u_pred
-        u_pred_b = self.net(x_b, t_b)
-        loss_bords = torch.mean((u_pred_b-u_b)**2)
-        u_pred_i = self.net(x_i, t_i)
-        loss_init = torch.mean((u_pred_i-u_i)**2)
-        return loss_residual + loss_bords + loss_init
-
+        
     # Entraîner modèle
     def train_step_rnn(self, train_data):
         x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, x_r_label, t_r_label, u_b_label, x_b_label, t_b_label, u_i_label, x_i_label, t_i_label = train_data
@@ -154,25 +212,7 @@ class PINN():
         self.optimizer.step()
         return loss.item()
 
-    def train_step(self, train_data):
-        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = train_data
-        self.net.train()
-        self.optimizer.zero_grad()
-        loss = self.loss_fn(x_r, t_r,
-                            u_b, x_b, t_b,
-                            u_i, x_i, t_i)
-        loss.backward()
-        self.optimizer.step()
-        return loss.item()
-
-    def val_step(self, val_data):
-        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = val_data
-        self.net.eval()
-        loss = self.loss_fn(x_r, t_r,
-                            u_b, x_b, t_b,
-                            u_i, x_i, t_i, validation=False)
-        return loss.item()
-
+    
     def val_step_rnn(self, val_data):
         x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, x_r_label, t_r_label, u_b_label, x_b_label, t_b_label, u_i_label, x_i_label, t_i_label = val_data
         self.net.eval()
@@ -183,22 +223,4 @@ class PINN():
                                 u_b_label, x_b_label, t_b_label,
                                 u_i_label, x_i_label, t_i_label)
         return loss.item()
-
-    def accuracy_step(self, val_data):
-        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = val_data
-        self.net.eval()
-        u_pred_i = self.net(x_i, t_i)
-        u_pred_b = self.net(x_b, t_b)
-        u_pred_r = self.net(x_r, t_r)
-        real_u_i = real_sol(x_i, t_i)
-        real_u_b = real_sol(x_b, t_b)
-        real_u_r = real_sol(x_r, t_r)
-        num_i = torch.mean(torch.square(u_pred_i-real_u_i))
-        num_b = torch.mean(torch.square(u_pred_b-real_u_b))
-        num_r = torch.mean(torch.square(u_pred_r-real_u_r))
-        den_i = torch.mean(torch.square(real_u_i))
-        den_b = torch.mean(torch.square(real_u_b))
-        den_r = torch.mean(torch.square(real_u_r))
-        num = num_i + num_b + num_r
-        den = den_i + den_b + den_r
-        return (num/den).item()
+    """
