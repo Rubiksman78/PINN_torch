@@ -144,26 +144,7 @@ def train(model, train_data, val_data,
         # Plot_losses
         plot_loss(losses, val_losses, acc)
 
-def train_rnn(model,train_data,val_data,epochs):
-    epochs = tqdm(range(epochs),desc="Training")
-    losses = []
-    val_losses = []
-    for epoch in epochs:
-        # Shuffle train_data
-        index_shuf = torch.randperm(train_data[0].shape[0])
-        train_data_new = [train_data[0][index_shuf], train_data[1][index_shuf], train_data[2][index_shuf], train_data[3][index_shuf], train_data[4][index_shuf], train_data[5][index_shuf], train_data[6][index_shuf], train_data[7][index_shuf],
-                          train_data[8][index_shuf], train_data[9][index_shuf], train_data[10][index_shuf], train_data[11][index_shuf], train_data[12][index_shuf], train_data[13][index_shuf], train_data[14][index_shuf], train_data[15][index_shuf]]
-        train_data = train_data_new
-        loss = model.train_step_rnn(train_data)
-        val_loss = model.val_step_rnn(val_data)
-        epochs.set_postfix(loss=loss, epochs=epoch, val_loss=val_loss)
-        losses.append(loss)
-        val_losses.append(val_loss)
-        if epoch % 100 == 0:
-            plot1dgrid_real(lb, ub, N_plotting, model, epoch, True)
-        if epoch+1 % 1000 == 0:
-            model.net.save_weights(f'weights/weights_{epoch}')
-        plot_loss(losses, val_losses)
+
 
 if __name__ == '__main__':
     seed = 42
@@ -180,7 +161,6 @@ if __name__ == '__main__':
     l_b,u_b = DEFAULT_CONFIG['l_b'],DEFAULT_CONFIG['u_b']
     N_neurons, N_layers = DEFAULT_CONFIG['N_neurons'],DEFAULT_CONFIG['N_layers']
     
-
     with_rnn = False
     net = PINN(with_rnn=with_rnn, N_neurons=N_neurons, N_layers=N_layers)
     #net._model_summary()
@@ -200,33 +180,17 @@ if __name__ == '__main__':
                     x_r.data.numpy(),
                     u_i.data.numpy(),
                     u_b.data.numpy())
-    if with_rnn:
-        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = all_data_to_sequences(x_r, t_r,
-                                                                    u_b, x_b, t_b,
-                                                                    u_i, x_i, t_i, seq_len=10)
-        x_r_label,t_r_label,u_b_label,x_b_label,t_b_label,u_i_label,x_i_label,t_i_label = all_data_to_label(x_r,t_r,
-                u_b,x_b,t_b,
-                u_i,x_i,t_i)
-    if not with_rnn:
-        train_data, val_data = val_split(
-            x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.1)
-    else:
-        train_data, val_data, train_data_labels, val_data_labels = val_split_with_labels(
-            x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.1)
-        train_data = train_data + train_data_labels
-        val_data = val_data + val_data_labels
+    
+    train_data, val_data = val_split(
+        x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.1)
+  
     lb = [0,0]
     ub = [1,1]
     N_plotting = DEFAULT_CONFIG['N_plotting']
     epochs = DEFAULT_CONFIG['epochs']
 
-
-    if with_rnn:
-        with torch.backends.cudnn.flags(enabled=False):
-            train_rnn(net, train_data, val_data, epochs=epochs)
-    else:
-        cProfile.run('train(net, train_data, val_data, epochs=epochs)', sort='cumtime', filename='profile.txt',)
-        #train(net,train_data,val_data,epochs=epochs)
+    cProfile.run('train(net, train_data, val_data, epochs=epochs)', sort='cumtime', filename='profile.txt',)
+    #train(net,train_data,val_data,epochs=epochs)
 
     writer.flush()
     writer.close()

@@ -48,44 +48,6 @@ def unnormalize_data(x_r,t_r,
     return x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i
 
 
-############################################################## SEQUENCES FOR RNN ###################################################################
-####################################################################################################################################################
-def data_to_rnn_sequences(data, seq_len):
-    """Converts data to sequences of length seq_len"""
-    sequences = []
-    for i in range(len(data)-seq_len):
-        sequences.append(data[i:i+seq_len])
-    return torch.stack(sequences)
-
-
-def all_data_to_sequences(x_r, t_r,
-                          u_b, x_b, t_b,
-                          u_i, x_i, t_i, seq_len):
-    x_r, t_r = data_to_rnn_sequences(
-        x_r, seq_len), data_to_rnn_sequences(t_r, seq_len)
-    u_b, x_b, t_b = data_to_rnn_sequences(u_b, seq_len), data_to_rnn_sequences(
-        x_b, seq_len), data_to_rnn_sequences(t_b, seq_len)
-    u_i, x_i, t_i = data_to_rnn_sequences(u_i, seq_len), data_to_rnn_sequences(
-        x_i, seq_len), data_to_rnn_sequences(t_i, seq_len)
-    return x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i
-
-def sequence_to_label(sequence):
-    """Converts a sequence to a label"""
-    return sequence[:, -1, :]
-
-
-def all_data_to_label(x_r, t_r,
-                      u_b, x_b, t_b,
-                      u_i, x_i, t_i):
-    x_r, t_r = sequence_to_label(x_r), sequence_to_label(t_r)
-    u_b, x_b, t_b = sequence_to_label(
-        u_b), sequence_to_label(x_b), sequence_to_label(t_b)
-    u_i, x_i, t_i = sequence_to_label(
-        u_i), sequence_to_label(x_i), sequence_to_label(t_i)
-    x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = x_r.to(device), t_r.to(device), u_b.to(
-        device), x_b.to(device), t_b.to(device), u_i.to(device), x_i.to(device), t_i.to(device)
-    return x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i
-
 ############################################################## TRAIN VAL SPLIT ###################################################################
 def val_split(x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2):
     """Splits data into training and validation set with random order"""
@@ -115,44 +77,3 @@ def val_split(x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2):
     u_i_val, x_i_val, t_i_val = u_i[idx_i[N_i_train:]
                                     ], x_i[idx_i[N_i_train:]], t_i[idx_i[N_i_train:]]
     return [x_r_train, t_r_train, u_b_train, x_b_train, t_b_train, u_i_train, x_i_train, t_i_train], [x_r_val, t_r_val, u_b_val, x_b_val, t_b_val, u_i_val, x_i_val, t_i_val]
-
-
-def val_split_with_labels(x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.2):
-    """Splits data into training and validation set with random order"""
-    x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = x_r.to(device), t_r.to(device), u_b.to(
-        device), x_b.to(device), t_b.to(device), u_i.to(device), x_i.to(device), t_i.to(device)
-    N_r = x_r.shape[0]
-    N_b = x_b.shape[0]
-    N_i = x_i.shape[0]
-    N_r_val = int(N_r*split)
-    N_b_val = int(N_b*split)
-    N_i_val = int(N_i*split)
-    N_r_train = N_r - N_r_val
-    N_b_train = N_b - N_b_val
-    N_i_train = N_i - N_i_val
-    idx_r = torch.randperm(N_r)
-    idx_b = torch.randperm(N_b)
-    idx_i = torch.randperm(N_i)
-    x_r_train, t_r_train = x_r[idx_r[:N_r_train]], t_r[idx_r[:N_r_train]]
-    x_r_val, t_r_val = x_r[idx_r[N_r_train:]], t_r[idx_r[N_r_train:]]
-    u_b_train, x_b_train, t_b_train = u_b[idx_b[:N_b_train]
-                                          ], x_b[idx_b[:N_b_train]], t_b[idx_b[:N_b_train]]
-    u_b_val, x_b_val, t_b_val = u_b[idx_b[N_b_train:]
-                                    ], x_b[idx_b[N_b_train:]], t_b[idx_b[N_b_train:]]
-    u_i_train, x_i_train, t_i_train = u_i[idx_i[:N_i_train]
-                                          ], x_i[idx_i[:N_i_train]], t_i[idx_i[:N_i_train]]
-    u_i_val, x_i_val, t_i_val = u_i[idx_i[N_i_train:]
-                                    ], x_i[idx_i[N_i_train:]], t_i[idx_i[N_i_train:]]
-    x_r_train_label, t_r_train_label = sequence_to_label(
-        x_r_train), sequence_to_label(t_r_train)
-    x_r_val_label, t_r_val_label = sequence_to_label(
-        x_r_val), sequence_to_label(t_r_val)
-    u_b_train_label, x_b_train_label, t_b_train_label = sequence_to_label(
-        u_b_train), sequence_to_label(x_b_train), sequence_to_label(t_b_train)
-    u_b_val_label, x_b_val_label, t_b_val_label = sequence_to_label(
-        u_b_val), sequence_to_label(x_b_val), sequence_to_label(t_b_val)
-    u_i_train_label, x_i_train_label, t_i_train_label = sequence_to_label(
-        u_i_train), sequence_to_label(x_i_train), sequence_to_label(t_i_train)
-    u_i_val_label, x_i_val_label, t_i_val_label = sequence_to_label(
-        u_i_val), sequence_to_label(x_i_val), sequence_to_label(t_i_val)
-    return [x_r_train, t_r_train, u_b_train, x_b_train, t_b_train, u_i_train, x_i_train, t_i_train], [x_r_val, t_r_val, u_b_val, x_b_val, t_b_val, u_i_val, x_i_val, t_i_val], [x_r_train_label, t_r_train_label, u_b_train_label, x_b_train_label, t_b_train_label, u_i_train_label, x_i_train_label, t_i_train_label], [x_r_val_label, t_r_val_label, u_b_val_label, x_b_val_label, t_b_val_label, u_i_val_label, x_i_val_label, t_i_val_label]
