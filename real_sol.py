@@ -6,6 +6,7 @@ from math import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 def real_sol(x, t):
     u = torch.sin(np.pi*x)*torch.cos(2*np.pi*t) + 0.5 * \
         torch.sin(4*np.pi*x)*torch.cos(8*np.pi*t)
@@ -51,7 +52,7 @@ def plot_real_sol3D(lb, ub, N):
     plt.close()
 
 
-lb = [0, 0]
-ub = [1, 1]
-N = 100
-plot_real_sol3D(lb, ub, N)
+# lb = [0, 0]
+# ub = [1, 1]
+# N = 100
+# plot_real_sol3D(lb, ub, N)
