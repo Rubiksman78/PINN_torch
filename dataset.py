@@ -4,7 +4,6 @@ from config import DEFAULT_CONFIG
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 N_i = DEFAULT_CONFIG["N_i"]
-
 ########################################################### POINTS DEFINITION ###########################################################
 #########################################################################################################################################
 def define_points(N_i,N_b,N_r,l_b,u_b):
@@ -21,6 +20,11 @@ def define_points(N_i,N_b,N_r,l_b,u_b):
     t_r = torch.rand(N_r, 1)
     x_r = torch.rand(N_r, 1)
     return t_i,x_i,u_i,t_b,x_b,u_b,t_r,x_r
+
+def define_points_begin(N_ri,l_b,u_b):
+    t_ri = torch.rand(N_ri,1) * 1* (u_b - l_b)
+    x_ri = torch.rand(N_ri,1)
+    return t_ri,x_ri
 
 #Normalize data with min max
 def normalize_data(x_r,t_r,

@@ -101,30 +101,27 @@ class PINN():
         return residual
 
     def loss_first(self,x_ri,t_ri):
-        pass
+        real_solution = real_sol(x_ri, t_ri)
+        u_pred_r = self.net(torch.cat([x_ri, t_ri], 1))
+        loss_residual = torch.mean((u_pred_r-real_solution)**2)
+        return loss_residual
 
     def loss_fn(self, x_r, t_r,
                 u_b, x_b, t_b,
                 u_i, x_i, t_i, validation=False):
 
+        loss_residual = torch.mean(torch.abs(self.f(x_r, t_r)))
 
-        #loss_residual = torch.mean(torch.abs(self.f(x_r, t_r)))
-
-        #u_pred_b = self.net(torch.cat([x_b, t_b], 1))
-        #loss_bords = torch.mean((u_pred_b-u_b)**2)
-        #u_pred_i = self.net(torch.cat([x_i, t_i], 1))
-        #loss_init = torch.mean((u_pred_i-u_i)**2)
-        loss_bords = torch.zeros(1, device=device)
-        loss_init = torch.zeros(1, device=device)
-
+        u_pred_b = self.net(torch.cat([x_b, t_b], 1))
+        loss_bords = torch.mean((u_pred_b-u_b)**2)
+        u_pred_i = self.net(torch.cat([x_i, t_i], 1))
+        loss_init = torch.mean((u_pred_i-u_i)**2)
+        
         #Compute derivative of u_pred_b with respect to t_b
         #u_pred_b_t = torch.autograd.functional.jacobian(self.net, torch.cat([x_b, t_b], 1), create_graph=True)
         loss_bords_der = torch.zeros(1, device=device)
         #loss_bords_der = torch.mean((u_pred_b_t)**2)
 
-        real_solution = real_sol(x_r, t_r)
-        u_pred_r = self.net(torch.cat([x_r, t_r], 1))
-        loss_residual = torch.mean((u_pred_r-real_solution)**2)
         """
         #Add truncated boundary c u_tx - u_tt = 0 at t = 1
         t_r_1 = torch.ones_like(t_r, requires_grad=True)
@@ -139,7 +136,7 @@ class PINN():
 
     def train_step(self, train_data,phase="later"):
         if phase == "beginning":
-            x_ri,t_ri = train_data
+            t_ri,x_ri = train_data
             loss = self.loss_first(x_ri,t_ri)
             return loss.item()
         else:
@@ -154,7 +151,7 @@ class PINN():
             self.optimizer.step()
             return loss_residual.item(),loss_bords.item(),loss_init.item(),loss_bords_der.item(),loss_trunc.item()
 
-    def val_step(self, val_data,phase="beginning"):
+    def val_step(self, val_data,phase="later"):
         if phase == "beginning":
             x_ri,t_ri = val_data
             loss = self.loss_first(x_ri,t_ri)

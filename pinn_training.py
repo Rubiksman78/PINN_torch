@@ -30,8 +30,7 @@ def plot_training_points(t_0, t_b, t_r, x_0, x_b, x_r, u_0, u_b):
     ax.set_title('Positions of collocation points and boundary data')
     plt.show()
 
-
-########################################################### PLOTTING FUNCTIONS ###########################################################
+########################################################## PLOTTING FUNCTIONS ###########################################################
 ##########################################################################################################################################
 
 def plot1dgrid_real(lb, ub, N, model, k, with_rnn=False):
@@ -82,7 +81,7 @@ def plot_loss(train_losses, val_losses, accuracy):
     ax2.plot(accuracy, label="accuracy", color='red')
 
     ax1.set(ylabel='Loss')
-    ax2.set(ylabel='Accuracy')
+    ax2.set(ylabel='Error')
     plt.xlabel('Epoch')
 
     ax1.legend()
@@ -92,7 +91,7 @@ def plot_loss(train_losses, val_losses, accuracy):
 
 ########################################################### TRAINING ###########################################################
 ################################################################################################################################
-def train(model, train_data, val_data,
+def train(model, train_data, val_data, train_data_begin,
           epochs):
     epochs = tqdm(range(epochs), desc="Training")
     losses = []
@@ -114,37 +113,39 @@ def train(model, train_data, val_data,
         t_i_train = train_data[7][index_shuf_i].to(device)
         train_data_new = [x_r_train, t_r_train, u_b_train, x_b_train, t_b_train, u_i_train, x_i_train, t_i_train]
         train_data = train_data_new
-        loss_residual,loss_bords,loss_init,loss_bords_der,loss_trunc = model.train_step(train_data)
-        loss = loss_residual + loss_bords + loss_init + loss_bords_der + loss_trunc
-        val_loss = model.val_step(val_data)
-        accuracy = model.accuracy_step(val_data)
-        epochs.set_postfix(loss_residual=loss_residual,
-            loss_bords=loss_bords, 
-            loss_init=loss_init, 
-            loss_bords_der=loss_bords_der, 
-            loss_trunc=loss_trunc, 
-            loss=loss, 
-            val_loss=val_loss, 
-            accuracy=accuracy)
-        losses.append(loss)
-        val_losses.append(val_loss)
-        acc.append(accuracy)
-        writer.add_scalar('Loss_residual', loss_residual, epoch)
-        writer.add_scalar('Loss_bords', loss_bords, epoch)
-        writer.add_scalar('Loss_init', loss_init, epoch)
-        writer.add_scalar('Loss_bords_der', loss_bords_der, epoch)
-        writer.add_scalar('Loss_trunc', loss_trunc, epoch)
-        writer.add_scalar('Loss', loss, epoch)
-        writer.add_scalar('Val_loss', val_loss, epoch)
-        writer.add_scalar('Accuracy', accuracy, epoch)
+        if epoch < 1000:
+            loss_begin = model.train_step(train_data_begin, phase="beginning")
+            epochs.set_postfix(loss=loss_begin)
+        else:
+            loss_residual,loss_bords,loss_init,loss_bords_der,loss_trunc = model.train_step(train_data)
+            loss = loss_residual + loss_bords + loss_init + loss_bords_der + loss_trunc
+            val_loss = model.val_step(val_data)
+            accuracy = model.accuracy_step(val_data)
+            epochs.set_postfix(loss_residual=loss_residual,
+                loss_bords=loss_bords, 
+                loss_init=loss_init, 
+                loss_bords_der=loss_bords_der, 
+                loss_trunc=loss_trunc, 
+                loss=loss, 
+                val_loss=val_loss, 
+                accuracy=accuracy)
+            losses.append(loss)
+            val_losses.append(val_loss)
+            acc.append(accuracy)
+            writer.add_scalar('Loss_residual', loss_residual, epoch)
+            writer.add_scalar('Loss_bords', loss_bords, epoch)
+            writer.add_scalar('Loss_init', loss_init, epoch)
+            writer.add_scalar('Loss_bords_der', loss_bords_der, epoch)
+            writer.add_scalar('Loss_trunc', loss_trunc, epoch)
+            writer.add_scalar('Loss', loss, epoch)
+            writer.add_scalar('Val_loss', val_loss, epoch)
+            writer.add_scalar('Accuracy', accuracy, epoch)
+            plot_loss(losses, val_losses, acc)
         if epoch % 100 == 0:
             plot1dgrid_real(lb, ub, N_plotting, model, epoch)
         if epoch % 1000 == 0:
             torch.save(model.net.state_dict(), f"results/model_{epoch}.pt")
-        # Plot_losses
-        plot_loss(losses, val_losses, acc)
-
-
+       
 
 if __name__ == '__main__':
     seed = 42
@@ -168,6 +169,7 @@ if __name__ == '__main__':
     #Write config to tensorboard
     writer.add_text('Config', str(DEFAULT_CONFIG))
 
+    t_ri,x_ri = define_points_begin(10000, l_b, u_b)
     t_i,x_i,u_i,t_b,x_b,u_b,t_r,x_r = define_points(N_i,N_b,N_r,l_b,u_b)
     #x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = normalize_data(x_r,t_r,
     #    u_b,x_b,t_b,
@@ -183,13 +185,14 @@ if __name__ == '__main__':
     
     train_data, val_data = val_split(
         x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, split=0.1)
-  
+    
+    train_data_begin = [t_ri.to(device),x_ri.to(device)]
     lb = [0,0]
     ub = [1,1]
     N_plotting = DEFAULT_CONFIG['N_plotting']
     epochs = DEFAULT_CONFIG['epochs']
 
-    cProfile.run('train(net, train_data, val_data, epochs=epochs)', sort='cumtime', filename='profile.txt',)
+    train(net, train_data, val_data,train_data_begin, epochs=epochs)
     #train(net,train_data,val_data,epochs=epochs)
 
     writer.flush()
