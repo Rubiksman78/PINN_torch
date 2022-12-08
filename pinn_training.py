@@ -83,7 +83,7 @@ def plot_loss(train_losses, val_losses, accuracy):
     plt.style.use('dark_background')
     ax1.plot(train_losses, label='train')
     ax1.plot(val_losses, label='val')
-    ax2.plot(accuracy, label="accuracy", color='red')
+    ax2.plot(accuracy, label="error", color='red')
 
     ax1.set(ylabel='Loss')
     ax2.set(ylabel='Error')
@@ -144,7 +144,7 @@ def train(model, train_data, val_data, train_data_begin,
                                accuracy=accuracy)
 
             # Scheduler step
-            model.scheduler.step(val_loss)
+            model.scheduler.step()
 
             # Append loss lists (and eventually log for Tensorboard)
             losses.append(loss)

@@ -95,7 +95,7 @@ class PINN():
         m = x.shape[0]
         return [x[i] for i in range(m)]
 
-    def f(self, x, t, variable_speed=True):
+    def f(self, x, t, variable_speed=False):
         u_xx, u_tt = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
         if variable_speed:
             c = c_fun(x, t)
