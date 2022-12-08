@@ -14,9 +14,9 @@ def u0(t, x):
     Input: t,x = time and space points for initial condition
     Output: u_0(t,x) = solution on initial condition
     """
-    return t + 1*(torch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x))
-    # return t + tf.sin(np.pi*x) * tf.exp(-x*x/4)
-
+    #return torch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x)
+    n = x.shape[0]
+    return torch.zeros((n,1))
 
 def v0(t, x, dimension):
     """
@@ -45,7 +45,8 @@ def residual(t, x, u_t, u_tt, u_xx, c):
     Input: t,x and derivatives of u
     Ouput : residual of PDE
     """
-    return u_tt - (c**2)*u_xx
+    #return u_tt - (c**2)*u_xx
+    return u_xx + np.pi**2 * torch.sin(np.pi * x) * torch.sin(np.pi * t)
 
 
 def true_u(x, a=0.5, c=2):
@@ -56,7 +57,6 @@ def true_u(x, a=0.5, c=2):
     t = x[:, 0]
     x = x[:, 1]
     return np.sin(np.pi * x) * np.cos(c * np.pi * t) + a * np.sin(2 * c * np.pi * x) * np.cos(4 * c * np.pi * t)
-
 
 # DTYPE = 'float32'
 # tf.keras.backend.set_floatx(DTYPE)

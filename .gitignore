@@ -5,5 +5,9 @@ results
 generated*
 loss*
 model*
-
+PhyCRNet
+runs
+profile.txt
+profiling.py
+vrac
 

@@ -2,4 +2,6 @@ import torch
 import torch.nn as nn
 
 def c_fun(x,t):
-    return x/2 
+    #Parabolic profile
+    c = 4*x**2-4*x+3
+    return c
