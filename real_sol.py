@@ -48,12 +48,11 @@ def plot_real_sol3D(lb, ub, N):
     ax.scatter(T, X1, U, c=U, marker='X', vmin=-1, vmax=1)
     ax.set_xlabel('$t$')
     ax.set_ylabel('$x1$')
-    plt.savefig(f'PINN_torch/results/real_sol3D.png')
-    plt.show()
+    plt.savefig(f'results/real_sol3D.png')
     plt.close()
 
 
-lb = [0, 0]
-ub = [1, 1]
-N = 100
-plot_real_sol3D(lb, ub, N)
+# lb = [0, 0]
+# ub = [1, 1]
+# N = 100
+# plot_real_sol3D(lb, ub, N)
