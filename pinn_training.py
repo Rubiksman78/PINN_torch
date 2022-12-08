@@ -135,7 +135,7 @@ def train(model, train_data, val_data, train_data_begin,
                 accuracy=accuracy)
 
             #Scheduler step
-            model.scheduler.step(val_loss)
+            model.scheduler.step()
 
             #Append loss lists (and eventually log for Tensorboard)
             losses.append(loss)
