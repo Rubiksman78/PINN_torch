@@ -44,7 +44,7 @@ class network(torch.jit.ScriptModule):
         for i, linear in enumerate(self.linear_hidden):
             x = self.activation(linear(x))
             #x = self.bn(x)
-            x = self.dropout(x)
+            #x = self.dropout(x)
         x = self.linear_output(x)
         return x
 
@@ -97,7 +97,8 @@ class PINN():
             #residual = u_tt - c*u_xx - (c**2-1)*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
             residual = u_tt - c*u_xx - 3*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         else:
-            residual = u_tt - 4*u_xx - 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
+            #residual = u_tt - 4*u_xx - 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
+            residual = u_tt - 4*u_xx
             #lap,_ = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
             #residual = lap - np.pi**2*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         return residual
@@ -112,13 +113,27 @@ class PINN():
                 u_b, x_b, t_b,
                 u_i, x_i, t_i, validation=False):
 
-        loss_residual = torch.mean(torch.abs(self.f(x_r, t_r)))
+        residual =self.f(x_r, t_r)
+        loss_residual = torch.mean(residual)
 
         u_pred_b = self.net(torch.cat([x_b, t_b], 1))
         loss_bords = torch.mean((u_pred_b-u_b)**2)
         u_pred_i = self.net(torch.cat([x_i, t_i], 1))
         loss_init = torch.mean((u_pred_i-u_i)**2)
         
+        """
+        jac_third = torch.autograd.functional.jacobian(self.f, (x_r,t_r), create_graph=True)
+        jac_third = jac_third[1]
+        loss_third = torch.mean(jac_third**2)
+        loss_residual = loss_residual + loss_third
+        """
+
+        """
+        #compute residual grad with respect to t 
+        third_deriv = grad(self.flat(residual), torch.cat([x_r, t_r], 1), create_graph=True, allow_unused=True,)[0]
+        loss_third = torch.mean(third_deriv**2)
+        loss_residual = loss_residual + loss_third
+        """
         #Compute derivative of u_pred_b with respect to t_b
         #u_pred_b_t = torch.autograd.functional.jacobian(self.net, torch.cat([x_b, t_b], 1), create_graph=True)
         loss_bords_der = torch.zeros(1, device=device)
