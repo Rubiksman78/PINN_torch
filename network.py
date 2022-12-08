@@ -57,6 +57,8 @@ class PINN():
             self.net = network(N_neurons,N_layers).to(device)
         self.optimizer = optim.Adam(
             self.net.parameters(), lr=DEFAULT_CONFIG['lr'])  # descente de gradient
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=DEFAULT_CONFIG['epochs'])
         self.loss_history = []
         self.loss_history_val = []
 
@@ -137,7 +139,11 @@ class PINN():
     def train_step(self, train_data,phase="later"):
         if phase == "beginning":
             t_ri,x_ri = train_data
+            self.net.train()
+            self.optimizer.zero_grad()
             loss = self.loss_first(x_ri,t_ri)
+            loss.backward()
+            self.optimizer.step()
             return loss.item()
         else:
             x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = train_data

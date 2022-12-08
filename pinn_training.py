@@ -99,7 +99,6 @@ def train(model, train_data, val_data, train_data_begin,
     acc = []
     for epoch in epochs:
         # Shuffle train_data
-        # On remélange pr pas entrainer sur la mm chose ds le mm ordre
         index_shuf_r = torch.randperm(train_data[0].shape[0])
         index_shuf_b = torch.randperm(train_data[2].shape[0])
         index_shuf_i = torch.randperm(train_data[5].shape[0])
@@ -112,6 +111,11 @@ def train(model, train_data, val_data, train_data_begin,
         x_i_train = train_data[6][index_shuf_i].to(device)
         t_i_train = train_data[7][index_shuf_i].to(device)
         train_data_new = [x_r_train, t_r_train, u_b_train, x_b_train, t_b_train, u_i_train, x_i_train, t_i_train]
+        #Shuffle train_data_begin
+        index_shuf_b = torch.randperm(train_data_begin[0].shape[0])
+        x_b_train = train_data_begin[0][index_shuf_b].to(device)
+        t_b_train = train_data_begin[1][index_shuf_b].to(device)
+        train_data_begin = [t_b_train, x_b_train]
         train_data = train_data_new
         if epoch < 1000:
             loss_begin = model.train_step(train_data_begin, phase="beginning")
@@ -129,9 +133,15 @@ def train(model, train_data, val_data, train_data_begin,
                 loss=loss, 
                 val_loss=val_loss, 
                 accuracy=accuracy)
+
+            #Scheduler step
+            model.scheduler.step(val_loss)
+
+            #Append loss lists (and eventually log for Tensorboard)
             losses.append(loss)
             val_losses.append(val_loss)
             acc.append(accuracy)
+
             writer.add_scalar('Loss_residual', loss_residual, epoch)
             writer.add_scalar('Loss_bords', loss_bords, epoch)
             writer.add_scalar('Loss_init', loss_init, epoch)
@@ -140,7 +150,9 @@ def train(model, train_data, val_data, train_data_begin,
             writer.add_scalar('Loss', loss, epoch)
             writer.add_scalar('Val_loss', val_loss, epoch)
             writer.add_scalar('Accuracy', accuracy, epoch)
+
             plot_loss(losses, val_losses, acc)
+
         if epoch % 100 == 0:
             plot1dgrid_real(lb, ub, N_plotting, model, epoch)
         if epoch % 1000 == 0:
@@ -154,7 +166,6 @@ if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
 
-    # pour utiliser le gpu au lieu de cpu
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
@@ -193,7 +204,6 @@ if __name__ == '__main__':
     epochs = DEFAULT_CONFIG['epochs']
 
     train(net, train_data, val_data,train_data_begin, epochs=epochs)
-    #train(net,train_data,val_data,epochs=epochs)
 
     writer.flush()
     writer.close()
