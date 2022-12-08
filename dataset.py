@@ -17,8 +17,16 @@ def define_points(N_i,N_b,N_r,l_b,u_b):
     x_b = torch.bernoulli(0.5*torch.ones(N_b,1))
     u_b = torch.zeros(N_b,1)
     
-    t_r = torch.rand(N_r, 1)
-    x_r = torch.rand(N_r, 1)
+    # t_r = torch.rand(N_r, 1)
+    t_r = torch.linspace(0, 1, steps=int(N_r/8))
+    t_r = torch.cat((t_r,t_r,t_r,t_r,t_r,t_r,t_r,t_r),0)
+    # x_r = torch.linspace(0.01, 1, steps=int(N_r/4))
+    x_r0 = (0.25 - 0.75) * torch.rand(int(N_r/4), 1) + 0.75
+    x_r1 =  torch.rand(int(N_r/4), 1)
+    x_r2 =  torch.rand(int(N_r/4), 1)
+    x_r = torch.cat((x_r0+0.12,x_r1,x_r0-0.12,x_r2),0)
+    # x_r = (0.05 - 0.95) * torch.rand(int(N_r/4), 1) +  0.95
+    # x_r = torch.cat((x_r+0.03,x_r-0.03),0)
     return t_i,x_i,u_i,t_b,x_b,u_b,t_r,x_r
 
 def define_points_begin(N_ri,l_b,u_b):
