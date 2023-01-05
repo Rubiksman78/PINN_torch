@@ -7,7 +7,6 @@ from torch.autograd import grad
 from itertools import chain
 import torchsummary
 from real_sol import real_sol
-from vrac.bails_sombres import RNN, Transformer
 from variable_speed import c_fun
 from config import DEFAULT_CONFIG
 import numpy as np
@@ -16,6 +15,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
 
 def plot1dgrid_real(lb, ub, N, model, k):
     """Same for the real solution"""
@@ -138,9 +138,9 @@ class PINN():
         xc = (x1+x2)*0.5
         tc = (t1+t2)*0.5
         f = (1/L)*((x-x1)*(t2-t1)-(t-t1)*(x2-x1))
-        t = (1/L)*((L/2.)**2 - self.dist(x,t,xc,tc)**2)
-        varphi = torch.sqrt(t**2 +f**4)
-        phi = torch.sqrt(f**2 + 0.25*(varphi-t)**2)
+        tk = (1/L)*((L/2.)**2 - self.dist(x,t,xc,tc)**2)
+        varphi = torch.sqrt(tk**2 +f**4)
+        phi = torch.sqrt(f**2 + 0.25*(varphi-tk)**2)
         return phi
 
     def phi(self,x,t):#segments is an array of all the segments composing the boundary
@@ -157,17 +157,23 @@ class PINN():
         x,t = x.unsqueeze(1),t.unsqueeze(1)
         w = self.phi(x,t)*self.net(z)
         #add initial condition oftorch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x) for t = 0
-        # w[t==0] += torch.sin(np.pi*x[t==0]) + 0.5*torch.sin(4*np.pi*x[t==0])
-        w[t==0] = 5
+        #w[t==0] += torch.sin(np.pi*x[t==0]) + 0.5*torch.sin(4*np.pi*x[t==0])
+        # w[t==0] = 5
+        w += torch.exp(-(t-1)**2/0.05) * torch.sin(np.pi*x)
         return w
         
     def loss(self, x, t):
-        x.requires_grad = True
-        t.requires_grad = True
-        laplacian_u_x, laplacian_u_t = self.calculate_laplacian(self.u, torch.cat((x, t), 1))     
+        #Gradient True
+        x,t = x.requires_grad_(True),t.requires_grad_(True)
+        #laplacian_u_x, laplacian_u_t = self.calculate_laplacian(self.u, torch.cat((x, t), 1))
+
+        u_tt = self.nth_gradient(self.u(torch.cat((x, t), 1)), t, 2)
+        u_xx = self.nth_gradient(self.u(torch.cat((x, t), 1)), x, 2)   
         #wave equation
-        f = laplacian_u_t - 4*laplacian_u_x - 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
-        loss = torch.mean(f ** 2)
+        f = -u_xx 
+        #f = u_xx
+        #- 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
+        loss = torch.mean(f**2)
         return loss
 
     def train(self, x, t, x_val, t_val, epochs=DEFAULT_CONFIG['epochs']):
@@ -179,11 +185,11 @@ class PINN():
             self.optimizer.step()
             self.scheduler.step()
 
-            with torch.no_grad():
-                loss_val = self.loss(x_val, t_val)
-                self.loss_history_val.append(loss_val.item())
+            loss_val = self.loss(x_val, t_val)
+            self.loss_history_val.append(loss_val.item())
+            if epoch % 100 == 0:
                 plot1dgrid_real([0,0],[1,1],100,self.u,epoch)
-                plot_loss(self.loss_history, self.loss_history_val)
+            plot_loss(self.loss_history, self.loss_history_val)
             progress_bar.set_description(
                 f"Loss: {loss.item():.4f}, Loss_val: {loss_val.item():.4f}")
         return self.loss_history, self.loss_history_val
@@ -195,17 +201,19 @@ class PINN():
             u = self.u(torch.cat((x, t), 1))
         return u
 
+torch.set_grad_enabled(True)
+
 segments = torch.tensor([[0,0,0,1],[0,1,1,1],[1,1,1,0],[1,0,0,0]],device=device)
-PINN = PINN(segments,N_neurons=16, N_layers=2)
-N_points = 20
-x = torch.linspace(0.01, 0.99, N_points, device=device).unsqueeze(1)
-t = torch.linspace(0.01, 0.99, N_points, device=device).unsqueeze(1)
+PINN = PINN(segments,N_neurons=50, N_layers=3)
+N_points = 4000
+x = torch.linspace(0.001, 0.999, N_points, device=device).unsqueeze(1)
+t = torch.linspace(0.001, 0.999, N_points, device=device).unsqueeze(1)
 
 x_train = x.repeat(N_points, 1)
 t_train = t.repeat(N_points, 1).t().reshape(-1, 1)
 
-x_val = torch.linspace(0.01, 0.99, 100, device=device).unsqueeze(1)
-t_val = torch.linspace(0.01, 0.99, 100, device=device).unsqueeze(1)
+x_val = torch.linspace(0.001, 0.999, 200, device=device).unsqueeze(1)
+t_val = torch.linspace(0.001, 0.999, 200, device=device).unsqueeze(1)
 
 loss_history, loss_history_val = PINN.train(x, t, x_val, t_val, epochs=10000)
 
