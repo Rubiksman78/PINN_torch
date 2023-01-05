@@ -9,8 +9,8 @@ N_i = DEFAULT_CONFIG["N_i"]
 def define_points(N_i,N_b,N_r,l_b,u_b):
     t_i = torch.zeros(N_i,1)
     x_i = torch.linspace(l_b,u_b,N_i).view(N_i,1)
-    #u_i = torch.sin(np.pi*x_i) + 0.5*torch.sin(4*np.pi*x_i)
-    u_i = torch.zeros(N_i,1)
+    u_i = torch.sin(np.pi*x_i) + 0.5*torch.sin(4*np.pi*x_i)
+    #u_i = torch.zeros(N_i,1)
 
     t_b = torch.linspace(l_b,u_b,N_b).view(N_b,1)
 

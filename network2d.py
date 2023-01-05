@@ -6,7 +6,7 @@ from torch import optim
 from torch.autograd import grad
 from itertools import chain
 import torchsummary
-from real_sol import real_sol
+from real_sol2d import real_sol
 from vrac.bails_sombres import RNN, Transformer
 from variable_speed import c_fun
 from config import DEFAULT_CONFIG
@@ -18,8 +18,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class Scaling_layer(nn.Module):  # Couche de normalisation des données entre -1 et 1
     def __init__(self):
         super(Scaling_layer, self).__init__()
-        self.lb = torch.tensor([0.0, 0.0]).to(device)
-        self.ub = torch.tensor([1.0, 1.0]).to(device)
+
+        # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+        self.lb = torch.tensor([0.0, 0.0, 0.0]).to(device)  # lower bound
+        self.ub = torch.tensor([1.0, 1.0, 1.0]).to(device)  # upper bound
 
     def forward(self, x):
         return 2 * (x - self.lb) / (self.ub - self.lb)
@@ -33,7 +35,9 @@ class network(torch.jit.ScriptModule):
         self.num_neurons = N_neurons
         self.num_layers = N_layers
         self.scaling_layer = Scaling_layer()
-        self.linear_input = nn.Linear(2, self.num_neurons)
+
+        # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+        self.linear_input = nn.Linear(3, self.num_neurons)
         self.linear_hidden = nn.ModuleList(
             [nn.Linear(self.num_neurons, self.num_neurons) for _ in range(self.num_layers)])
         self.linear_output = nn.Linear(self.num_neurons, 1)
@@ -47,7 +51,7 @@ class network(torch.jit.ScriptModule):
         for i, linear in enumerate(self.linear_hidden):
             x = self.activation(linear(x))
             #x = self.bn(x)
-            #x = self.dropout(x)
+            x = self.dropout(x)
         x = self.linear_output(x)
         return x
 
@@ -56,7 +60,9 @@ class PINN():
     def __init__(self, with_rnn=False, N_neurons=64, N_layers=4):
         if with_rnn == True:
             #self.net = RNN(2, 64, 1, num_layers=4).to(device)
-            self.net = Transformer(2, 16, 1, num_layers=4).to(device)
+
+            # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+            self.net = Transformer(3, 16, 1, num_layers=4).to(device)
         else:
             self.net = network(N_neurons, N_layers).to(device)
         self.optimizer = optim.Adam(
@@ -83,57 +89,60 @@ class PINN():
     def calculate_laplacian(self, model, tensor):
         laplacian_x = torch.zeros(tensor.shape[0], 1, device=device)
         laplacian_t = torch.zeros(tensor.shape[0], 1, device=device)
+
+        # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+        laplacian_y = torch.zeros(tensor.shape[0], 1, device=device)
+
         for i, tensori in enumerate(tensor):
             hess = torch.autograd.functional.hessian(
                 model, tensori.unsqueeze(0), create_graph=True)
             hess = hess.view(2, 2)
             laplacian_x[i] = hess[0, 0]
             laplacian_t[i] = hess[1, 1]
-        return laplacian_x, laplacian_t
+
+            # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+            laplacian_y[i] = hess[2, 2]
+        return laplacian_x, laplacian_y, laplacian_t
 
     def flat(self, x):
         m = x.shape[0]
         return [x[i] for i in range(m)]
 
-    def f(self, x, t, variable_speed=False):
-        u_xx, u_tt = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
+    def f(self, x, y, t, variable_speed=False):
+        u_xx, u_yy, u_tt = self.calculate_laplacian(
+            self.net, torch.cat([x, y, t], 1))
         if variable_speed:
-            c = c_fun(x, t)
+            c = c_fun(x, y, t)
             #residual = u_tt - c*u_xx - (c**2-1)*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
-            residual = u_tt - c*u_xx - 3*torch.sin(np.pi*x)*torch.sin(np.pi*t)
+
+            # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+            residual = u_tt - c*(u_xx+u_yy)
         else:
-            #residual = u_tt - 4*u_xx - 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
-            residual = u_tt - 4*u_xx
+            residual = u_tt - 4*(u_xx+u_yy)
             #lap,_ = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
             #residual = lap - np.pi**2*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         return residual
 
-    def loss_first(self, x_ri, t_ri):
-        real_solution = real_sol(x_ri, t_ri)
-        u_pred_r = self.net(torch.cat([x_ri, t_ri], 1))
+    # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+    def loss_first(self, x_ri, y_ri, t_ri):
+        real_solution = real_sol(x_ri, y_ri, t_ri)
+        u_pred_r = self.net(torch.cat([x_ri, y_ri, t_ri], 1))
         loss_residual = torch.mean((u_pred_r-real_solution)**2)
         return loss_residual
 
-    def loss_fn(self, x_r, t_r,
-                u_b, x_b, t_b,
-                u_i, x_i, t_i, validation=False):
+    # On est maintenant en 2D donc on a 3 entrées (x,y,t)
+    def loss_fn(self, x_r, y_r, t_r,
+                u_b, x_b, y_b, t_b,
+                u_i, x_i, y_i, t_i, validation=False):
 
-        residual = self.f(x_r, t_r)
-        loss_residual = torch.mean(residual)
+        loss_residual = torch.mean(torch.abs(self.f(x_r, y_r, t_r)))
 
-        u_pred_b = self.net(torch.cat([x_b, t_b], 1))
+        u_pred_b = self.net(torch.cat([x_b, y_b, t_b], 1))
         loss_bords = torch.mean((u_pred_b-u_b)**2)
-        u_pred_i = self.net(torch.cat([x_i, t_i], 1))
+        u_pred_i = self.net(torch.cat([x_i, y_i, t_i], 1))
         loss_init = torch.mean((u_pred_i-u_i)**2)
-        
-        """
-        grad_third = grad(outputs=residual, inputs=Variable(t_r,requires_grad=True), grad_outputs=torch.ones_like(residual,device=device), create_graph=True,retain_graph=True,only_inputs=True)
-        grad_third = grad_third[0]
-        loss_residual_third = torch.mean((grad_third)**2)
-        loss_residual = loss_residual + loss_residual_third
-        """
 
-        #Compute derivative of u_pred_b with respect to t_b
+        # Compute derivative of u_pred_b with respect to t_b
         #u_pred_b_t = torch.autograd.functional.jacobian(self.net, torch.cat([x_b, t_b], 1), create_graph=True)
         loss_bords_der = torch.zeros(1, device=device)
         #loss_bords_der = torch.mean((u_pred_b_t)**2)
@@ -152,20 +161,20 @@ class PINN():
 
     def train_step(self, train_data, phase="later"):
         if phase == "beginning":
-            t_ri, x_ri = train_data
+            t_ri, x_ri, y_ri = train_data
             self.net.train()
             self.optimizer.zero_grad()
-            loss = self.loss_first(x_ri, t_ri)
+            loss = self.loss_first(x_ri, y_ri, t_ri)
             loss.backward()
             self.optimizer.step()
             return loss.item()
         else:
-            x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i, = train_data
+            x_r, y_r, t_r, u_b, x_b, y_b, t_b, u_i, x_i, y_i, t_i, = train_data
             self.net.train()
             self.optimizer.zero_grad()
-            loss_residual, loss_bords, loss_init, loss_bords_der, loss_trunc = self.loss_fn(x_r, t_r,
-                                                                                            u_b, x_b, t_b,
-                                                                                            u_i, x_i, t_i)
+            loss_residual, loss_bords, loss_init, loss_bords_der, loss_trunc = self.loss_fn(x_r, y_r, t_r,
+                                                                                            u_b, x_b, y_b, t_b,
+                                                                                            u_i, x_i, y_i, t_i)
             loss = loss_residual + loss_bords + loss_init + loss_bords_der + 0.5*loss_trunc
             loss.backward()
             self.optimizer.step()
@@ -173,25 +182,25 @@ class PINN():
 
     def val_step(self, val_data, phase="later"):
         if phase == "beginning":
-            x_ri, t_ri = val_data
-            loss = self.loss_first(x_ri, t_ri)
+            x_ri, y_ri, t_ri = val_data
+            loss = self.loss_first(x_ri, y_ri, t_ri)
             return loss.item()
         else:
-            x_r, t_r, u_b, x_b, t_b, u_i, x_i, t_i = val_data
+            x_r, y_r, t_r, u_b, x_b, y_b, t_b, u_i, x_i, y_i, t_i = val_data
             self.net.eval()
-            loss_residual, loss_bords, loss_init, loss_bords_der, loss_trunc = self.loss_fn(x_r, t_r,
-                                                                                            u_b, x_b, t_b,
-                                                                                            u_i, x_i, t_i, validation=False)
+            loss_residual, loss_bords, loss_init, loss_bords_der, loss_trunc = self.loss_fn(x_r, y_r, t_r,
+                                                                                            u_b, x_b, y_b, t_b,
+                                                                                            u_i, x_i, y_i, t_i, validation=False)
             loss = loss_residual + loss_bords + loss_init + loss_bords_der + loss_trunc
             return loss.item()
 
     def accuracy_step(self, val_data):
-        x_r, t_r, _, _, _, _, _, _ = val_data
+        x_r, y_r, t_r, _, _, _, _, _, _ = val_data
         self.net.eval()
         # Compute MSE between real_sol and net
         with torch.no_grad():
-            u_pred = self.net(torch.cat([x_r, t_r], 1))
-            real_u = real_sol(x_r, t_r)
+            u_pred = self.net(torch.cat([x_r, y_r, t_r], 1))
+            real_u = real_sol(x_r, y_r, t_r)
             num = torch.mean(torch.square(u_pred-real_u))
             #den = torch.mean(torch.square(real_u))
         return num.item()
