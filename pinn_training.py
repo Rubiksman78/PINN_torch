@@ -121,11 +121,11 @@ def train(model, train_data, val_data, train_data_begin,
                           x_b_train, t_b_train, u_i_train, x_i_train, t_i_train]
         # Shuffle train_data_begin
         index_shuf_b = torch.randperm(train_data_begin[0].shape[0])
-        x_b_train = train_data_begin[0][index_shuf_b].to(device)
-        t_b_train = train_data_begin[1][index_shuf_b].to(device)
+        t_b_train = train_data_begin[0][index_shuf_b].to(device)
+        x_b_train = train_data_begin[1][index_shuf_b].to(device)
         train_data_begin = [t_b_train, x_b_train]
         train_data = train_data_new
-        if epoch < 1000:
+        if epoch < 0:
             loss_begin = model.train_step(train_data_begin, phase="beginning")
             epochs.set_postfix(loss=loss_begin)
         else:
@@ -133,23 +133,23 @@ def train(model, train_data, val_data, train_data_begin,
                 train_data)
             loss = loss_residual + loss_bords + loss_init + loss_bords_der + loss_trunc
             val_loss = model.val_step(val_data)
-            accuracy = model.accuracy_step(val_data)
+            error = model.accuracy_step(val_data)
             epochs.set_postfix(loss_residual=loss_residual,
-                               loss_bords=loss_bords,
-                               loss_init=loss_init,
-                               loss_bords_der=loss_bords_der,
-                               loss_trunc=loss_trunc,
-                               loss=loss,
-                               val_loss=val_loss,
-                               accuracy=accuracy)
+                loss_bords=loss_bords, 
+                loss_init=loss_init, 
+                loss_bords_der=loss_bords_der, 
+                loss_trunc=loss_trunc, 
+                loss=loss, 
+                val_loss=val_loss, 
+                accuracy=error)
 
-            # Scheduler step
-            model.scheduler.step()
+            #Scheduler step
+            #model.scheduler.step()
 
             # Append loss lists (and eventually log for Tensorboard)
             losses.append(loss)
             val_losses.append(val_loss)
-            acc.append(accuracy)
+            acc.append(error)
 
             writer.add_scalar('Loss_residual', loss_residual, epoch)
             writer.add_scalar('Loss_bords', loss_bords, epoch)
@@ -158,7 +158,7 @@ def train(model, train_data, val_data, train_data_begin,
             writer.add_scalar('Loss_trunc', loss_trunc, epoch)
             writer.add_scalar('Loss', loss, epoch)
             writer.add_scalar('Val_loss', val_loss, epoch)
-            writer.add_scalar('Accuracy', accuracy, epoch)
+            writer.add_scalar('Error', error, epoch)
 
             plot_loss(losses, val_losses, acc)
 
@@ -192,6 +192,7 @@ if __name__ == '__main__':
     t_ri, x_ri = define_points_begin(10000, l_b, u_b)
     t_i, x_i, u_i, t_b, x_b, u_b, t_r, x_r = define_points(
         N_i, N_b, N_r, l_b, u_b)
+    
     # x_r,t_r,u_b,x_b,t_b,u_i,x_i,t_i = normalize_data(x_r,t_r,
     #    u_b,x_b,t_b,
     #    u_i,x_i,t_i)

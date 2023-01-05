@@ -47,7 +47,7 @@ class network(torch.jit.ScriptModule):
         for i, linear in enumerate(self.linear_hidden):
             x = self.activation(linear(x))
             #x = self.bn(x)
-            x = self.dropout(x)
+            #x = self.dropout(x)
         x = self.linear_output(x)
         return x
 
@@ -102,8 +102,8 @@ class PINN():
             #residual = u_tt - c*u_xx - (c**2-1)*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
             residual = u_tt - c*u_xx - 3*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         else:
-            residual = u_tt - 4*u_xx - 3 * \
-                (np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
+            #residual = u_tt - 4*u_xx - 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
+            residual = u_tt - 4*u_xx
             #lap,_ = self.calculate_laplacian(self.net, torch.cat([x, t], 1))
             #residual = lap - np.pi**2*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         return residual
@@ -118,14 +118,22 @@ class PINN():
                 u_b, x_b, t_b,
                 u_i, x_i, t_i, validation=False):
 
-        loss_residual = torch.mean(torch.abs(self.f(x_r, t_r)))
+        residual = self.f(x_r, t_r)
+        loss_residual = torch.mean(residual)
 
         u_pred_b = self.net(torch.cat([x_b, t_b], 1))
         loss_bords = torch.mean((u_pred_b-u_b)**2)
         u_pred_i = self.net(torch.cat([x_i, t_i], 1))
         loss_init = torch.mean((u_pred_i-u_i)**2)
+        
+        """
+        grad_third = grad(outputs=residual, inputs=Variable(t_r,requires_grad=True), grad_outputs=torch.ones_like(residual,device=device), create_graph=True,retain_graph=True,only_inputs=True)
+        grad_third = grad_third[0]
+        loss_residual_third = torch.mean((grad_third)**2)
+        loss_residual = loss_residual + loss_residual_third
+        """
 
-        # Compute derivative of u_pred_b with respect to t_b
+        #Compute derivative of u_pred_b with respect to t_b
         #u_pred_b_t = torch.autograd.functional.jacobian(self.net, torch.cat([x_b, t_b], 1), create_graph=True)
         loss_bords_der = torch.zeros(1, device=device)
         #loss_bords_der = torch.mean((u_pred_b_t)**2)
