@@ -98,10 +98,10 @@ class PINN():
                 model, tensori.unsqueeze(0), create_graph=True)
             hess = hess.view(2, 2)
             laplacian_x[i] = hess[0, 0]
-            laplacian_t[i] = hess[1, 1]
+            laplacian_t[i] = hess[2, 2]
 
             # On est maintenant en 2D donc on a 3 entrées (x,y,t)
-            laplacian_y[i] = hess[2, 2]
+            laplacian_y[i] = hess[1, 1]
         return laplacian_x, laplacian_y, laplacian_t
 
     def flat(self, x):
@@ -127,7 +127,8 @@ class PINN():
     def loss_first(self, x_ri, y_ri, t_ri):
         real_solution = real_sol(x_ri, y_ri, t_ri)
         u_pred_r = self.net(torch.cat([x_ri, y_ri, t_ri], 1))
-        loss_residual = torch.mean((u_pred_r-real_solution)**2)
+        loss_residual = torch.mean(
+            (u_pred_r-real_solution)**2)
         return loss_residual
 
     # On est maintenant en 2D donc on a 3 entrées (x,y,t)

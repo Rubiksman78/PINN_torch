@@ -8,6 +8,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def real_sol(x, y, t):
+    return np.sin(2*np.pi*x)*np.sin(2*np.pi*y)*np.exp(-4*np.pi**2*t)
+
+
+def real_sol_jsp_trop(x, y, t):
     # The following code sample describes solving the 2D wave equation.
     # This code will look at a 2D sine wave under initial conditions.
     # There are a few different steps for doing this.
@@ -113,15 +117,15 @@ def real_sol(x, y, t):
 
         U = real_sol(X1, T)
 
-    plt.style.use('dark_background')
+        plt.style.use('dark_background')
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.scatter(T, X1, c=U, marker='X', vmin=-1, vmax=1)
-    ax.set_xlabel('$t$')
-    ax.set_ylabel('$x1$')
-    plt.savefig(f'results/real_sol.png')
-    plt.close()
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.scatter(T, X1, c=U, marker='X', vmin=-1, vmax=1)
+        ax.set_xlabel('$t$')
+        ax.set_ylabel('$x1$')
+        plt.savefig(f'results/real_sol.png')
+        plt.close()
 
 
 def plot_real_sol3D(lb, ub, N):
