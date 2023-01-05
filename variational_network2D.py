@@ -194,6 +194,7 @@ class PINN():
         f = laplacian_u_t - 4*(laplacian_u_x+laplacian_u_y) - 3 * \
             (np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         loss = torch.mean(f ** 2)
+        print(laplacian_u_x, laplacian_u_y, laplacian_u_t)
         return loss
 
     def train(self, x, y, t, x_val, y_val, t_val, epochs=DEFAULT_CONFIG['epochs']):
@@ -224,9 +225,9 @@ class PINN():
 
 segments = torch.tensor(
     [[0, 0, 0, 1], [0, 1, 1, 1], [1, 1, 1, 0], [1, 0, 0, 0]], device=device)
-# Segments2 doit etre un tensor de la forme [[x1,y1,t1,x2,y2,t2],...]
-segments2 = torch.tensor([[0, 0, 0, 1, 0, 1], [0, 1, 1, 1, 1, 1], [
-                         1, 1, 1, 1, 0, 1], [1, 0, 1, 0, 0, 0], ], device=device)
+# Segments2 doit etre un tensor de la forme [[x1,y1,t1,x2,y2,t2],...] et represente les 8 sommets d'un cube de cote 1
+segments2 = torch.tensor([[0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 1], [1, 0, 0, 1, 1, 0], [1, 0, 0, 1, 0, 1], [0, 1, 0, 1, 1, 0], [
+                         0, 1, 0, 0, 1, 1], [0, 0, 1, 1, 0, 1], [0, 0, 1, 0, 1, 1], [1, 1, 0, 1, 1, 1], [1, 0, 1, 1, 1, 1], [0, 1, 1, 1, 1, 1]], device=device)
 
 
 PINN = PINN(segments2, N_neurons=16, N_layers=2)
