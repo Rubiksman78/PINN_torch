@@ -158,8 +158,7 @@ class PINN():
         # f = (1/L)*((x-x1)*(t2-t1) -(t-t1)*(x2-x1) )
         # Change the signed distance f with now 3 dimensions
         f = (1/L)*((x-x1)*(t2-t1) - (t-t1)*(x2-x1) +
-                   (y-y1)*(x2-x1) - (x-x1)*(y2-y1) +
-                   (t-t1)*(y2-y1) - (y-y1)*(t2-t1))
+                   (y-y1)*(t2-t1) - (t-t1)*(y2-y1))
         t = (1/L)*((L/2.)**2 - self.dist(x, y, t, xc, yc, tc)**2)
         varphi = torch.sqrt(t**2 + f**4)
         phi = torch.sqrt(f**2 + 0.25*(varphi-t)**2)
@@ -188,12 +187,13 @@ class PINN():
         x.requires_grad = True
         y.requires_grad = True
         t.requires_grad = True
-        # laplacian_u_x = self.nth_gradient(self.u(torch.cat((x, y, t), 1)), x, 2)
-        # laplacian_u_y = self.nth_gradient(self.u(torch.cat((x, y, t), 1)), y, 2)
-        # laplacian_u_t = self.nth_gradient(self.u(torch.cat((x, y, t), 1)), t, 2)
+        u_x_y_t = self.u(torch.cat((x, y, t), 1))
+        laplacian_u_x = self.nth_gradient(u_x_y_t, x, 2)
+        laplacian_u_y = self.nth_gradient(u_x_y_t, y, 2)
+        laplacian_u_t = self.nth_gradient(u_x_y_t, t, 2)
 
-        laplacian_u_x, laplacian_u_y, laplacian_u_t = self.calculate_laplacian(
-            self.u, torch.cat((x, y, t), 1))
+        # laplacian_u_x, laplacian_u_y, laplacian_u_t = self.calculate_laplacian(
+        #     self.u, torch.cat((x, y, t), 1))
 
         # wave equation
         f = laplacian_u_t - 4*(laplacian_u_x+laplacian_u_y) - 3 * \
