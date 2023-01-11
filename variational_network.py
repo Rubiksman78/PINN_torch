@@ -13,6 +13,7 @@ import numpy as np
 from dataset import *
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from gradients import hessian,clear
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -51,16 +52,14 @@ def plot1dgrid_real(lb, ub, N, model, k):
     plt.close()
 
 def plot_loss(train_losses, val_losses):
-    fig,ax1 = plt.subplots(1, 1)
-    plt.style.use('dark_background')
-    ax1.plot(train_losses, label='train')
-    ax1.plot(val_losses, label='val')
-
-    ax1.set(ylabel='Loss')
-    plt.xlabel('Epoch')
-
-    ax1.legend()
-    plt.savefig(f'figs/loss')
+    """Plot the loss"""
+    plt.figure()
+    plt.plot(train_losses, label='Train')
+    plt.plot(val_losses, label='Validation')
+    plt.legend()
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.savefig('figs/loss.png')
     plt.close()
 
 # Réseau de neurones
@@ -81,7 +80,7 @@ class network(torch.jit.ScriptModule):
         self.linear_hidden = nn.ModuleList(
             [nn.Linear(self.num_neurons, self.num_neurons) for _ in range(self.num_layers)])
         self.linear_output = nn.Linear(self.num_neurons, 1)
-        self.activation = CubicReLU() #nn.Tanh() if not working
+        self.activation = nn.Tanh() #nn.Tanh() if not working
 
     def forward(self, x):
         x = self.activation(self.linear_input(x))
@@ -91,7 +90,7 @@ class network(torch.jit.ScriptModule):
         return x
 
 class PINN():
-    def __init__(self,segments,N_neurons=64, N_layers=4):
+    def __init__(self,segments,N_neurons=300, N_layers=4):
         self.net = network(N_neurons, N_layers).to(device)
         self.optimizer = optim.Adam(
             self.net.parameters(), lr=DEFAULT_CONFIG['lr'])  # descente de gradient
@@ -159,7 +158,9 @@ class PINN():
         #add initial condition oftorch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x) for t = 0
         #w[t==0] += torch.sin(np.pi*x[t==0]) + 0.5*torch.sin(4*np.pi*x[t==0])
         # w[t==0] = 5
-        w += torch.exp(-(t-1)**2/0.05) * torch.sin(np.pi*x)
+        #w += torch.exp(-t**2/0.1) * (torch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x))*
+        w += torch.exp(-t**2/0.1) * torch.sin(np.pi*x)
+        
         return w
         
     def loss(self, x, t):
@@ -167,11 +168,14 @@ class PINN():
         x,t = x.requires_grad_(True),t.requires_grad_(True)
         #laplacian_u_x, laplacian_u_t = self.calculate_laplacian(self.u, torch.cat((x, t), 1))
 
-        u_tt = self.nth_gradient(self.u(torch.cat((x, t), 1)), t, 2)
-        u_xx = self.nth_gradient(self.u(torch.cat((x, t), 1)), x, 2)   
-        #wave equation
-        f = -u_xx 
-        #f = u_xx
+        # u_tt = self.nth_gradient(self.u(torch.cat((x, t), 1)), t, 3)
+        # u_xx = self.nth_gradient(self.u(torch.cat((x, t), 1)), x, 3)   
+        points = torch.cat((x, t), 1)
+        pred = self.u(points)
+        u_tt = hessian(pred,points,i=1,j=1)
+        u_xx = hessian(pred,points,i=0,j=0)
+        clear()
+        f = u_tt - 4 * u_xx
         #- 3*(np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         loss = torch.mean(f**2)
         return loss
@@ -204,8 +208,8 @@ class PINN():
 torch.set_grad_enabled(True)
 
 segments = torch.tensor([[0,0,0,1],[0,1,1,1],[1,1,1,0],[1,0,0,0]],device=device)
-PINN = PINN(segments,N_neurons=50, N_layers=3)
-N_points = 4000
+PINN = PINN(segments,N_neurons=200, N_layers=4)
+N_points = 500
 x = torch.linspace(0.001, 0.999, N_points, device=device).unsqueeze(1)
 t = torch.linspace(0.001, 0.999, N_points, device=device).unsqueeze(1)
 
