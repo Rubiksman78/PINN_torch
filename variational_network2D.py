@@ -180,7 +180,8 @@ class PINN():
         w = self.phi(x, y, t)*self.net(z)
         # add initial condition oftorch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x) for t = 0
         # w[t==0] += torch.sin(np.pi*x[t==0]) + 0.5*torch.sin(4*np.pi*x[t==0])
-        w[t == 0] = 5
+        w += torch.exp(-t**2/0.1) * \
+            (torch.sin(np.pi*x) + 0.5*torch.sin(np.pi*y))
         return w
 
     def loss(self, x, y, t):
@@ -212,7 +213,8 @@ class PINN():
 
             loss_val = self.loss(x_val, y_val, t_val)
             self.loss_history_val.append(loss_val.item())
-            plot1dgrid_real([0, 0, 0], [1, 1, 1], 100, self.u, epoch)
+            if epoch % 10 == 0:
+                plot1dgrid_real([0, 0, 0], [1, 1, 1], 100, self.u, epoch)
             plot_loss(self.loss_history, self.loss_history_val)
             progress_bar.set_description(
                 f"Loss: {loss.item():.4f}, Loss_val: {loss_val.item():.4f}")
