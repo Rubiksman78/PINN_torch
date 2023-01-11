@@ -124,6 +124,7 @@ class PINN():
             hess = hess.view(2, 2)
             laplacian_x[i] = hess[0, 0]
             laplacian_t[i] = hess[1, 1]
+            print(hess)
         return laplacian_x, laplacian_t
 
     def flat(self, x):

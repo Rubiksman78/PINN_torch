@@ -126,14 +126,18 @@ class PINN():
                 return None
         return grads
 
+# The following code returns the laplacian of the function f
+# But when computing, we have NaN gradients. How to fix this?
+
     def calculate_laplacian(self, model, tensor):
+        torch.autograd.set_detect_anomaly(True)
         laplacian_x = torch.zeros(tensor.shape[0], 1, device=device)
         laplacian_y = torch.zeros(tensor.shape[0], 1, device=device)
         laplacian_t = torch.zeros(tensor.shape[0], 1, device=device)
         for i, tensori in enumerate(tensor):
             hess = torch.autograd.functional.hessian(
                 model, tensori.unsqueeze(0), create_graph=True)
-            hess = hess.view(2, 2)
+            hess = hess.view(3, 3)
             laplacian_x[i] = hess[0, 0]
             laplacian_y[i] = hess[1, 1]
             laplacian_t[i] = hess[2, 2]
@@ -184,17 +188,17 @@ class PINN():
         x.requires_grad = True
         y.requires_grad = True
         t.requires_grad = True
-        laplacian_u_x = self.nth_gradient(
-            self.u(torch.cat((x, y, t), 1)), x, 2)
-        laplacian_u_y = self.nth_gradient(
-            self.u(torch.cat((x, y, t), 1)), y, 2)
-        laplacian_u_t = self.nth_gradient(
-            self.u(torch.cat((x, y, t), 1)), t, 2)
+        # laplacian_u_x = self.nth_gradient(self.u(torch.cat((x, y, t), 1)), x, 2)
+        # laplacian_u_y = self.nth_gradient(self.u(torch.cat((x, y, t), 1)), y, 2)
+        # laplacian_u_t = self.nth_gradient(self.u(torch.cat((x, y, t), 1)), t, 2)
+
+        laplacian_u_x, laplacian_u_y, laplacian_u_t = self.calculate_laplacian(
+            self.u, torch.cat((x, y, t), 1))
+
         # wave equation
         f = laplacian_u_t - 4*(laplacian_u_x+laplacian_u_y) - 3 * \
             (np.pi**2)*torch.sin(np.pi*x)*torch.sin(np.pi*t)
         loss = torch.mean(f ** 2)
-        print(laplacian_u_x, laplacian_u_y, laplacian_u_t)
         return loss
 
     def train(self, x, y, t, x_val, y_val, t_val, epochs=DEFAULT_CONFIG['epochs']):
