@@ -6,7 +6,7 @@ DEFAULT_CONFIG = {
     "u_b": 1.0,
     "epochs": 5000,
     "N_plotting": 100,
-    "lr": 1e-3,
+    "lr": 1e-4,
     "N_neurons":20,
     "N_layers":8,
 }
