@@ -52,7 +52,7 @@ def plot1dgrid_real(lb, ub, N, model, k):
     for i in range(N):
         z_array[:, :, i] = U[i]
 
-    for j in range(len(T)):
+    for j in tqdm(range(len(T)), desc='Plotting for each time step of epoch {} '.format(k)):
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
         ax.plot_surface(X1[:, :, j], Y1[:, :, j],
@@ -223,7 +223,7 @@ class PINN():
 
             loss_val = self.loss(x_val, y_val, t_val)
             self.loss_history_val.append(loss_val.item())
-            if epoch % 100 == 0:
+            if epoch % 100 == 0 and epoch != 0:
                 parent_dir = 'C:/Users/ilyes/Documents/CS/ProjetMécaEtIA/PINN_torch'
                 path = os.path.join(parent_dir, "results2Dnew/epoch_{epoch}")
                 try:
