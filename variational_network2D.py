@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,6 +16,7 @@ from dataset import *
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from getGIF import create_gif
 
 # Our following code was in 1D and we want to make it 2D
 
@@ -30,30 +32,38 @@ def plot1dgrid_real(lb, ub, N, model, k):
     y1space = np.linspace(lb[0], ub[0], N)
     tspace = np.linspace(lb[1], ub[1], N)
     X1, Y1, T = np.meshgrid(tspace, x1space, y1space)
+
     T = torch.from_numpy(T).view(1, N**3, 1).to(device).float()
     X1 = torch.from_numpy(X1).view(1, N**3, 1).to(device).float()
     Y1 = torch.from_numpy(Y1).view(1, N**3, 1).to(device).float()
+
     T = T.transpose(0, 1).squeeze(-1)
     X1 = X1.transpose(0, 1).squeeze(-1)
     Y1 = Y1.transpose(0, 1).squeeze(-1)
+
     upred = model(torch.cat((X1, Y1, T), 1))
     U = torch.squeeze(upred).detach().cpu().numpy()
     U = upred.view(N, N, N).detach().cpu().numpy()
+
     T, X1, Y1 = T.view(N, N, N).detach().cpu().numpy(), X1.view(
         N, N, N).detach().cpu().numpy(), Y1.view(N, N, N).detach().cpu().numpy()
+
     z_array = np.zeros((N, N, N))
     for i in range(N):
         z_array[:, :, i] = U[i]
 
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-    ax.scatter(T, X1, Y1, c=U, marker='X')
-    ax.set_xlabel('$t$')
-    ax.set_ylabel('$x1$')
+    for j in range(len(T)):
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.plot_surface(X1[:, :, j], Y1[:, :, j],
+                        z_array[:, :, j], cmap='viridis')
+        # ax.scatter(X1, Y1, U[j], c=z_array[j], marker='X')
+        ax.set_xlabel('$x1$')
+        ax.set_ylabel('$y1$')
 
-    plt.savefig(f'results2Dnew/real_sol_{k}')
-    writer.add_figure(f'real_sol_{k}', fig)
-    plt.close()
+        plt.savefig(f'results2Dnew/epoch_{k}/t_{j}')
+        writer.add_figure(f't_{j}', fig)
+        plt.close()
 
 
 def plot_loss(train_losses, val_losses):
@@ -213,8 +223,15 @@ class PINN():
 
             loss_val = self.loss(x_val, y_val, t_val)
             self.loss_history_val.append(loss_val.item())
-            if epoch % 10 == 0:
+            if epoch % 100 == 0:
+                parent_dir = 'C:/Users/ilyes/Documents/CS/ProjetMécaEtIA/PINN_torch'
+                path = os.path.join(parent_dir, "results2Dnew/epoch_{epoch}")
+                try:
+                    os.mkdir(path.format(epoch=epoch))
+                except OSError:
+                    print("")
                 plot1dgrid_real([0, 0, 0], [1, 1, 1], 100, self.u, epoch)
+                create_gif(epoch, 100)
             plot_loss(self.loss_history, self.loss_history_val)
             progress_bar.set_description(
                 f"Loss: {loss.item():.4f}, Loss_val: {loss_val.item():.4f}")
