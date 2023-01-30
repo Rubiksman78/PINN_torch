@@ -55,6 +55,7 @@ def plot1dgrid_real(lb, ub, N, model, k):
     for j in tqdm(range(len(T)), desc='Plotting for each time step of epoch {} '.format(k)):
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
+
         ax.plot_surface(X1[:, :, j], Y1[:, :, j],
                         z_array[:, :, j], cmap='viridis')
         # ax.scatter(X1, Y1, U[j], c=z_array[j], marker='X')
@@ -188,10 +189,11 @@ class PINN():
         x, y, t = z[:, 0], z[:, 1], z[:, 2]
         x, y, t = x.unsqueeze(1), y.unsqueeze(1), t.unsqueeze(1)
         w = self.phi(x, y, t)*self.net(z)
-        # add initial condition oftorch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x) for t = 0
-        # w[t==0] += torch.sin(np.pi*x[t==0]) + 0.5*torch.sin(4*np.pi*x[t==0])
-        w += torch.exp(-t**2/0.1) * \
-            (torch.sin(np.pi*x) + 0.5*torch.sin(np.pi*y))
+        # add initial condition of torch.sin(np.pi*x) + 0.5*torch.sin(4*np.pi*x) for t = 0
+        # w[t == 0] += torch.sin(np.pi*x[t == 0]) + 0.5 * \
+        #     torch.sin(4*np.pi*x[t == 0])
+        # w += torch.exp(-t**2/0.1) * \
+        #     (torch.sin(np.pi*x) + 0.5*torch.sin(np.pi*y))
         return w
 
     def loss(self, x, y, t):
@@ -223,7 +225,7 @@ class PINN():
 
             loss_val = self.loss(x_val, y_val, t_val)
             self.loss_history_val.append(loss_val.item())
-            if epoch % 100 == 0 and epoch != 0:
+            if epoch % 50 == 0 and epoch != 0:
                 parent_dir = 'C:/Users/ilyes/Documents/CS/ProjetMécaEtIA/PINN_torch'
                 path = os.path.join(parent_dir, "results2Dnew/epoch_{epoch}")
                 try:
